@@ -35,7 +35,7 @@ describe('Main Socratic Skill Integration Test (SKILL.md System Prompt)', () => 
   it('should accept mocked user diff and produce initial Socratic question formatted correctly', async () => {
     // ユーザープロンプトのモック
     const userPromptMock = `
-/socratic-review --depth=quick
+/socratic-review --depth=quick --issue="N/A"
 
 [モック環境情報]:
 - カレントブランチ: feature/auth-login
@@ -55,12 +55,12 @@ describe('Main Socratic Skill Integration Test (SKILL.md System Prompt)', () => 
     expect(agentOutput).toContain('【事実（自動検出）】');
     expect(agentOutput).toContain('【専門家パネルからの問い】');
     expect(agentOutput).toContain('【選択肢】');
-    expect(agentOutput).toMatch(/- A\)/);
-    expect(agentOutput).toMatch(/- B\)/);
-    expect(agentOutput).toMatch(/- C\) スキップ/);
+    expect(agentOutput).toMatch(/-\s*\*{0,2}A\)/);
+    expect(agentOutput).toMatch(/-\s*\*{0,2}B\)/);
+    expect(agentOutput).toMatch(/-\s*\*{0,2}C\) 意図通り/);
 
     // autoevals によるスケルトン一致評価
-    const expectedSkeleton = '【事実（自動検出）】\n【専門家パネルからの問い】\n【選択肢】\n- A)\n- B)\n- C) スキップ';
+    const expectedSkeleton = '【事実（自動検出）】\n【専門家パネルからの問い】\n【選択肢】\n- A)\n- B)\n- C) 意図通り';
     const levenshteinEval = await Levenshtein({
       output: agentOutput,
       expected: expectedSkeleton,
