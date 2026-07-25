@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-FILE_PATH="${1:?Usage: $0 <file_path> <line_number> <expert> <question> <answer> <status>}"
-LINE_NUMBER="${2:?Usage: $0 <file_path> <line_number> <expert> <question> <answer> <status>}"
-EXPERT_NAME="${3:-General}"
-QUESTION="${4:-}"
-ANSWER="${5:-}"
-STATUS="${6:-intended}" # intended
+FILE_PATH="${1:?Usage: $0 <file_path> <line_number> <intent>}"
+LINE_NUMBER="${2:?Usage: $0 <file_path> <line_number> <intent>}"
+INTENT="${3:?Usage: $0 <file_path> <line_number> <intent>}"
 
 if [ ! -f "$FILE_PATH" ]; then
   echo "ERROR: ファイルが存在しません: ${FILE_PATH}"
@@ -46,7 +43,7 @@ else
   INDENT=""
 fi
 
-BODY="[socratic-review] Q(${EXPERT_NAME}, ${STATUS}): ${QUESTION} / A: ${ANSWER}"
+BODY="${INTENT}"
 
 if [ -n "$OPEN" ]; then
   COMMENT_LINE="${INDENT}${OPEN} ${BODY} ${CLOSE}"

@@ -130,56 +130,47 @@ describe('Shell Scripts Unit Tests', () => {
       const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
         path.join(tmpDir, 'missing.js'),
         '1',
-        'sec-qa-expert',
-        '質問',
-        '回答',
-        'resolved',
+        '設計上意図的な実装です',
       ]);
       expect(res.exitCode).toBe(1);
       expect(res.stdout).toContain('ERROR');
     });
 
-    it('should insert a "//" comment before the target line in a .ts file', () => {
+    it('should insert a "//" comment containing only the intent before the target line in a .ts file', () => {
       const targetFile = path.join(tmpDir, 'token.ts');
       fs.writeFileSync(targetFile, 'function foo() {\n  return 1;\n}\n');
 
       const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
         targetFile,
         '2',
-        'sec-qa-expert',
-        'SQLインジェクションの対策は？',
-        'プレースホルダーを使用します',
-        'resolved',
+        'SQLインジェクション対策としてプレースホルダーを使用しているため意図的です',
       ]);
 
       expect(res.stdout).toBe(`APPENDED: ${targetFile}:2`);
 
       const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
       expect(lines[1]).toContain('//');
-      expect(lines[1]).toContain('[socratic-review]');
-      expect(lines[1]).toContain('SQLインジェクションの対策は？');
-      expect(lines[1]).toContain('プレースホルダーを使用します');
+      expect(lines[1]).toContain('SQLインジェクション対策としてプレースホルダーを使用しているため意図的です');
+      expect(lines[1]).not.toContain('[socratic-review]');
       expect(lines[2]).toBe('  return 1;');
     });
 
-    it('should insert a "#" comment before the target line in a .py file', () => {
+    it('should insert a "#" comment containing only the intent before the target line in a .py file', () => {
       const targetFile = path.join(tmpDir, 'app.py');
       fs.writeFileSync(targetFile, 'def foo():\n    return 1\n');
 
       const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
         targetFile,
         '2',
-        'ops-expert',
-        'エラーログは必要か？',
-        'スキップ',
-        'skipped',
+        'ログ出力は不要と判断しているため意図的です',
       ]);
 
       expect(res.stdout).toBe(`APPENDED: ${targetFile}:2`);
 
       const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
       expect(lines[1].trim().startsWith('#')).toBe(true);
-      expect(lines[1]).toContain('skipped');
+      expect(lines[1]).toContain('ログ出力は不要と判断しているため意図的です');
+      expect(lines[1]).not.toContain('[socratic-review]');
     });
   });
 
