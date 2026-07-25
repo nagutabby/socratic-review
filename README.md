@@ -16,7 +16,8 @@
   - 「〜〜してください」という一方的な指示ではなく、開発者の思考を促す「問いかけ」形式でレビューを進行。
   - 各専門家の指摘には優先度（高 / 中 / 低）を付与し、**優先度の高い問いから順**にユーザーへ提示。
 - **⚙️ 柔軟な深度・実行オプション**
-  - `--depth`: レビューの深さ調整 (`quick`: 3問 / `standard`: 7問 / `deep`: 15問)。未指定の場合は対話形式で希望の問答数を確認（`--non-interactive` 時は `standard` を採用）。
+  - `--issue`: 対象IssueのURLを事前指定。未指定の場合は調査開始前に対話形式でIssue URLを確認（`--non-interactive` 時は未指定だとエラー終了するため必須）。
+  - `--depth`: レビューの深さ調整 (`quick`: 3問 / `standard`: 7問 / `deep`: 15問)。Issue URLの確定後、未指定の場合は対話形式で希望の問答数を確認（`--non-interactive` 時は `standard` を採用）。
   - `--focus`: 特定のコンポーネントや関数に絞ったレビュー
   - `--non-interactive`: TTYなし/CI環境モード。問答を待たず専門家の推論のみで自己完結し報告
 - **📝 「意図通り」と判断した問いを意図のみコードにインラインコメントとして記録**
@@ -103,6 +104,9 @@ gh auth status
 
 # 特定の認証モジュールに集中してレビューしたい場合
 /socratic-review --focus="src/auth"
+
+# 対象IssueのURLを事前に指定する場合（--non-interactive時は必須）
+/socratic-review --issue="https://github.com/your-org/your-repo/issues/123"
 ```
 
 ---

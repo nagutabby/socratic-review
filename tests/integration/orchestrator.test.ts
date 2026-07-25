@@ -35,7 +35,7 @@ describe('Main Socratic Skill Integration Test (SKILL.md System Prompt)', () => 
   it('should accept mocked user diff and produce initial Socratic question formatted correctly', async () => {
     // ユーザープロンプトのモック
     const userPromptMock = `
-/socratic-review --depth=quick --issue="N/A"
+/socratic-review --depth=quick --issue="https://github.com/example/example/issues/1"
 
 [モック環境情報]:
 - カレントブランチ: feature/auth-login
