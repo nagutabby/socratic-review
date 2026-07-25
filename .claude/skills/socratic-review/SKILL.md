@@ -30,7 +30,7 @@ model: sonnet
 
 ## 1. 調査と専門家パネルの呼び出し
 1. 以下のシェルスクリプトを実行して情報を取得する：
-   - `~/.claude/skills/socratic-review/scripts/read-readme.sh` を実行し、プロジェクト概要を取得する。
+   - `~/.claude/skills/socratic-review/scripts/read-docs.sh` を実行し、プロジェクト概要（README・ADR・Spec等）を取得する。
    - `~/.claude/skills/socratic-review/scripts/fetch-diff.sh "<ベースブランチ>" "<フォーカス対象>"` を実行し、git diff の要約とカテゴリタグ (`[Tags: ...]`) を取得する（`--focus` が指定されている場合は第2引数に渡す）。
    - `~/.claude/skills/socratic-review/scripts/fetch-pull-request.sh` を実行し、`gh` コマンド経由で現在のブランチに紐づくPRとその変更ファイル一覧を取得する。
    - 「0-1. Issue URLの決定」で確定した **Issue URL** に対し、`~/.claude/skills/socratic-review/scripts/fetch-issue.sh "<Issue URL>"` を実行しIssue本文を取得する。出力に `ISSUE: NOT_FOUND` が含まれる場合は、指定されたURL/番号のIssueが見つからなかった旨をユーザーに伝え、Issue本文は無いものとして扱う（**Issue URL** 自体は「1-2」でそのまま使用する）。

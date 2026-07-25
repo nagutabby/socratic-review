@@ -55,13 +55,15 @@ describe('Shell Scripts Unit Tests', () => {
   }
 
   // -------------------------------------------------------------
-  // 1. read-readme.sh のテスト
+  // 1. read-docs.sh のテスト
   // -------------------------------------------------------------
-  describe('read-readme.sh', () => {
-    it('should report "README: None" when no README file exists', () => {
+  describe('read-docs.sh', () => {
+    it('should report "README: None", "ADR: None" and "SPEC: None" when no doc exists', () => {
       // 空のディレクトリ状態で実行
-      const res = runScript('.claude/skills/socratic-review/scripts/read-readme.sh');
-      expect(res.stdout).toBe('README: None');
+      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      expect(res.stdout).toContain('README: None');
+      expect(res.stdout).toContain('ADR: None');
+      expect(res.stdout).toContain('SPEC: None');
       expect(res.exitCode).toBe(0);
     });
 
@@ -75,12 +77,55 @@ describe('Shell Scripts Unit Tests', () => {
 `;
       fs.writeFileSync(path.join(tmpDir, 'README.md'), mockReadme);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/read-readme.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
 
       expect(res.stdout).toContain('=== README_SUMMARY (README.md) ===');
       expect(res.stdout).toContain('# Project Title');
       expect(res.stdout).toContain('## Architecture');
       expect(res.stdout).toContain('概要テキスト');
+    });
+
+    it('should detect ADR files under docs/adr and list them with their title', () => {
+      fs.mkdirSync(path.join(tmpDir, 'docs/adr'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, 'docs/adr/0001-use-postgres.md'),
+        '# 0001 Use PostgreSQL\n\n本文\n'
+      );
+      fs.writeFileSync(
+        path.join(tmpDir, 'docs/adr/0002-use-grpc.md'),
+        '# 0002 Use gRPC\n\n本文\n'
+      );
+
+      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+
+      expect(res.stdout).toContain('=== ADR_SUMMARY ===');
+      expect(res.stdout).toContain('Found 2 file(s)');
+      expect(res.stdout).toContain('docs/adr/0001-use-postgres.md: 0001 Use PostgreSQL');
+      expect(res.stdout).toContain('docs/adr/0002-use-grpc.md: 0002 Use gRPC');
+    });
+
+    it('should detect Spec files under a spec/ directory and list them with their title', () => {
+      fs.mkdirSync(path.join(tmpDir, 'spec'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'spec/auth.md'), '# User Auth Spec\n\n本文\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+
+      expect(res.stdout).toContain('=== SPEC_SUMMARY ===');
+      expect(res.stdout).toContain('Found 1 file(s)');
+      expect(res.stdout).toContain('spec/auth.md: User Auth Spec');
+    });
+
+    it('should truncate the ADR listing beyond 20 files', () => {
+      fs.mkdirSync(path.join(tmpDir, 'docs/adr'), { recursive: true });
+      for (let i = 1; i <= 25; i++) {
+        const n = String(i).padStart(4, '0');
+        fs.writeFileSync(path.join(tmpDir, `docs/adr/${n}-decision.md`), `# ${n} Decision\n`);
+      }
+
+      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+
+      expect(res.stdout).toContain('Found 25 file(s)');
+      expect(res.stdout).toContain('... (and 5 more, truncated)');
     });
   });
 

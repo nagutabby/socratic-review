@@ -79,7 +79,7 @@ gh auth status
   - `ops-expert.md`
   - `ui-ux-expert.md`
 - **`scripts/`**: 差分取得・コメント記録用シェルスクリプト
-  - `read-readme.sh`: README 情報の抽出
+  - `read-docs.sh`: README・ADR・Spec/設計ドキュメントの抽出
   - `fetch-diff.sh`: diff の取得とタグ自動分類
   - `fetch-pull-request.sh`: `gh` コマンド経由で現在ブランチに紐づく PR を取得
   - `fetch-issue.sh`: `gh` コマンド経由で明示指定された Issue URL/番号から Issue を取得
