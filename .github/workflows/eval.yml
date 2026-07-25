@@ -1,0 +1,42 @@
+name: Agent Evals
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# 同じPR/ブランチで新しい実行があった場合、古い実行を自動キャンセル
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 必要最小限の権限（セキュリティ向上）
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # package.json の packageManager を自動読み込み
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      # CI用にロックファイルを厳格チェック
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Agent Evals
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: pnpm test

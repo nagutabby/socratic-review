@@ -1,0 +1,5 @@
+allowBuilds:
+  '@google/genai': true
+  autoevals: true
+  esbuild: true
+  protobufjs: true

@@ -1,0 +1,6 @@
+# MCP サーバー設定
+.mcp.json
+.mcp.local.json
+.claude/socratic-state.json
+
+node_modules/

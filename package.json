@@ -1,0 +1,31 @@
+{
+  "name": "socratic-review",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@11.17.0",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24.0.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "@google/genai": "^2.13.0",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "autoevals": "^0.3.0"
+  }
+}
