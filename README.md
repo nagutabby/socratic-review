@@ -78,8 +78,8 @@ gh auth status
 - **`scripts/`**: 差分取得・コメント記録用シェルスクリプト
   - `read-readme.sh`: README 情報の抽出
   - `fetch-diff.sh`: diff の取得とタグ自動分類
-  - `fetch-github-context.sh`: `gh` コマンド経由で現在ブランチの PR と、そこから自動検出（または明示指定）した Issue を取得
-  - `fetch-remote-file.sh`: `gh` コマンド経由でリポジトリ内の任意ファイルを指定 ref の内容で取得
+  - `fetch-pull-request.sh`: `gh` コマンド経由で現在ブランチに紐づく PR を取得
+  - `fetch-issue.sh`: `gh` コマンド経由で明示指定された Issue URL/番号から Issue を取得
   - `append-comment.sh`: 解決済み問いを該当ファイルの該当行にインラインコメントとして追記
 
 ---

@@ -184,43 +184,59 @@ describe('Shell Scripts Unit Tests', () => {
   });
 
   // -------------------------------------------------------------
-  // 4. fetch-github-context.sh のテスト（gh コマンドをスタブして検証）
+  // 4. fetch-pull-request.sh のテスト（gh コマンドをスタブして検証）
   // -------------------------------------------------------------
-  describe('fetch-github-context.sh', () => {
-    it('should report PR: None and ISSUE: NOT_FOUND when no PR exists for the branch', () => {
+  describe('fetch-pull-request.sh', () => {
+    it('should report PR: None when no PR exists for the branch', () => {
       const env = stubGh('exit 1');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/fetch-github-context.sh', [], env);
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', [], env);
 
       expect(res.stdout).toContain('PR: None');
-      expect(res.stdout).toContain('ISSUE: NOT_FOUND');
     });
 
-    it('should auto-detect the linked issue from the PR body close keyword', () => {
+    it('should print PR number, title, url and changed files', () => {
       const env = stubGh(`
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
   echo '{"number":7,"title":"Fix bug","body":"Closes #42","url":"https://github.com/example/example/pull/7","files":[{"path":"src/a.ts"},{"path":"src/b.ts"}]}'
   exit 0
 fi
-if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
-  echo '{"number":42,"title":"Sample Issue","body":"Issue body text","url":"https://github.com/example/example/issues/42"}'
-  exit 0
-fi
 exit 1
 `);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/fetch-github-context.sh', [], env);
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', [], env);
 
       expect(res.stdout).toContain('PR #7: Fix bug');
+      expect(res.stdout).toContain('URL: https://github.com/example/example/pull/7');
       expect(res.stdout).toContain('- src/a.ts');
       expect(res.stdout).toContain('- src/b.ts');
-      expect(res.stdout).toContain('Issue #42: Sample Issue');
-      expect(res.stdout).toContain('Issue body text');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 5. fetch-issue.sh のテスト（gh コマンドをスタブして検証）
+  // -------------------------------------------------------------
+  describe('fetch-issue.sh', () => {
+    it('should exit with an error when no issue reference is given', () => {
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-issue.sh', []);
+
+      expect(res.exitCode).not.toBe(0);
+    });
+
+    it('should report ISSUE: NOT_FOUND when the given issue cannot be fetched', () => {
+      const env = stubGh('exit 1');
+
+      const res = runScript(
+        '.claude/skills/socratic-review/scripts/fetch-issue.sh',
+        ['https://github.com/example/example/issues/99'],
+        env
+      );
+
+      expect(res.stdout).toContain('ISSUE: NOT_FOUND');
     });
 
     it('should fetch the issue directly when an issue URL is passed explicitly', () => {
       const env = stubGh(`
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then exit 1; fi
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   echo '{"number":99,"title":"Direct Issue","body":"direct body","url":"https://github.com/example/example/issues/99"}'
   exit 0
@@ -229,7 +245,7 @@ exit 1
 `);
 
       const res = runScript(
-        '.claude/skills/socratic-review/scripts/fetch-github-context.sh',
+        '.claude/skills/socratic-review/scripts/fetch-issue.sh',
         ['https://github.com/example/example/issues/99'],
         env
       );
@@ -237,48 +253,23 @@ exit 1
       expect(res.stdout).toContain('Issue #99: Direct Issue');
       expect(res.stdout).toContain('direct body');
     });
-  });
 
-  // -------------------------------------------------------------
-  // 5. fetch-remote-file.sh のテスト（gh コマンドをスタブして検証）
-  // -------------------------------------------------------------
-  describe('fetch-remote-file.sh', () => {
-    it('should decode and print the file content returned by gh api', () => {
+    it('should strip a leading "#" when an issue number is passed', () => {
+      const argsFile = path.join(tmpDir, 'gh-args.txt');
       const env = stubGh(`
-if [ "$1" = "api" ]; then
-  echo -n "Hello File Content" | base64
+echo "$@" >> "${argsFile}"
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  echo '{"number":42,"title":"Numbered Issue","body":"body","url":"https://github.com/example/example/issues/42"}'
   exit 0
 fi
 exit 1
 `);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/fetch-remote-file.sh', ['README.md'], env);
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-issue.sh', ['#42'], env);
 
-      expect(res.stdout).toBe('Hello File Content');
-    });
-
-    it('should include the ref as a query parameter when specified', () => {
-      const argsFile = path.join(tmpDir, 'gh-args.txt');
-      const env = stubGh(
-        `
-echo "$@" >> "${argsFile}"
-if [ "$1" = "api" ]; then
-  echo -n "Ref Content" | base64
-  exit 0
-fi
-exit 1
-`
-      );
-
-      const res = runScript(
-        '.claude/skills/socratic-review/scripts/fetch-remote-file.sh',
-        ['src/index.ts', 'abc123'],
-        env
-      );
-
-      expect(res.stdout).toBe('Ref Content');
+      expect(res.stdout).toContain('Issue #42: Numbered Issue');
       const recordedArgs = fs.readFileSync(argsFile, 'utf-8');
-      expect(recordedArgs).toContain('contents/src/index.ts?ref=abc123');
+      expect(recordedArgs).toContain('issue view 42');
     });
   });
 });
