@@ -1,6 +1,6 @@
 # 🏛️ Socratic Review Skill (`/socratic-review`)
 
-`socratic-review` は、GitHub Issue、README、および `git diff` の変更差分から、セキュリティ・アーキテクチャ・運用（Ops）・UI/UX の専門家パネルが対話形式（ソクラテス的問答）で仕様の抜け漏れや潜在的リスクを深掘りする Claude Code 用の拡張スキルです。
+`socratic-review` は、GitHub Issue、README、および `git diff` の変更差分から、セキュリティ・アーキテクチャ・運用（Ops）・UI/UX の専門家パネルが対話形式（ソクラテス式問答法）で仕様の抜け漏れや潜在的リスクを深掘りする Claude Code 用の拡張スキルです。
 
 ---
 
