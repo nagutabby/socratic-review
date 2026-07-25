@@ -17,8 +17,51 @@
 - **⚙️ 柔軟な深度・実行オプション**
   - `--depth`: レビューの深さ調整 (`quick`: 3問 / `standard`: 7問 / `deep`: 15問)
   - `--focus`: 特定のコンポーネントや関数に絞ったレビュー
-  - `--non-interactive`: CI/CD や非対話環境での自己完結レポート生成
-  - `--write-decisions`: 合意事項を `DECISIONS.md` へ自動記録
+  - `--non-interactive`: TTYなし/CI環境モード。問答を待たず専門家の推論のみで自己完結し報告
+  - `--write-decisions`: レビュー完了時、合意事項を `DECISIONS.md` へ自動記録
+
+---
+
+## 🌐 インストール・グローバル設定（全リポジトリでの利用）
+
+本スキルを任意のプロジェクト（あらゆる Git リポジトリ）から `/socratic-review` で呼び出せるようにするため、ホームディレクトリ配下の Claude 設定ディレクトリへシンボリックリンクを作成し、GitHub MCP サーバーをユーザー範囲（グローバル）で登録します。
+
+### 1. リポジトリのクローン
+まずは本リポジトリをローカルの任意の場所（例: `~/socratic-review`）にクローンします。
+
+```bash
+git clone https://github.com/your-username/socratic-review.git ~/socratic-review
+```
+
+### 2. スキルディレクトリのシンボリックリンク作成
+`~/.claude/skills` ディレクトリに本スキルのディレクトリへのリンクを貼ります。
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s ~/socratic-review/.claude/skills/socratic-review ~/.claude/skills/socratic-review
+```
+
+### 3. GitHub Personal Access Token (Fine-grained) の取得
+スキルが GitHub の Issue や Pull Request 情報を読み書きできるよう、アクセス権限を絞った Fine-grained PAT を作成します。
+
+1. [GitHub Settings > Personal Access Tokens > Fine-grained tokens](https://github.com/settings/tokens?type=beta) にアクセスし、**「Generate new token」** をクリックします。
+2. **Token name**（例: `claude-code-mcp`）と有効期限（Expiration）を設定します。
+3. **Repository access** で対象のリポジトリ（`All repositories` または特定の対象リポジトリ）を選択します。
+4. **Permissions** 内の **Repository permissions** を以下のように設定します：
+   - **Issues**: `Read & Write`（Issue の参照・取得のため）
+   - **Pull requests**: `Read & Write`（PR 差分参照・コメント投稿のため）
+   - **Contents**: `Read-only`（ファイル内容・コード参照のため）
+5. **「Generate token」** をクリックし、生成されたトークン（`github_pat_...`）をコピーします。
+
+### 4. GitHub MCP サーバーのユーザー登録（`--scope user`）
+取得した PAT を環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` として渡しながら、`claude mcp add` コマンドでグローバル（全プロジェクト共通）に登録します。
+
+```bash
+claude mcp add github \
+  --scope user \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN="github_pat_your_token_here" \
+  -- npx -y @modelcontextprotocol/server-github
+```
 
 ---
 
@@ -42,9 +85,9 @@
 
 ## 🏃 使い方 (Claude Code 内)
 
-### 基本実行
-Claude Code のチャット上で以下のように呼び出します。
+セットアップ完了後、**任意のリポジトリ上**で Claude Code を起動して使用できます。
 
+### 基本実行
 ```bash
 /socratic-review
 ```
@@ -66,11 +109,9 @@ Claude Code のチャット上で以下のように呼び出します。
 
 ## 🧪 テスト・評価（Evals）基盤
 
-本リポジトリでは、**Vitest** と **Gemini 3.1 Flash-Lite** (`temperature: 0`) を組み合わせた Evals (評価) テスト基盤を備えています。実ファイル (`.md`) 内のシステムプロンプトを動的に注入して自動検証します。
+本リポジトリ開発者向けに、**Vitest** と **Gemini 3.1 Flash-Lite** (`temperature: 0`) を組み合わせた自動評価（Evals）テスト基盤を備えています。実ファイル (`.md`) 内のシステムプロンプトを動的に注入して検証します。
 
 ### 必要な環境変数
-テストの実行には Gemini API キーが必要です。
-
 ```bash
 export GEMINI_API_KEY="your-gemini-api-key"
 ```
@@ -83,9 +124,6 @@ pnpm install
 
 # 全テストの実行 (単体テスト・結合テスト・シェルスクリプトテスト)
 pnpm test
-
-# 実行例:
-# - tests/unit/agents.test.ts   (サブエージェント単体テスト)
-# - tests/unit/scripts.test.ts  (シェルスクリプト単体テスト)
-# - tests/integration/orchestrator.test.ts (メインフロー結合テスト)
 ```
+
+---
