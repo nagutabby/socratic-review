@@ -112,110 +112,63 @@ describe('Shell Scripts Unit Tests', () => {
   });
 
   // -------------------------------------------------------------
-  // 3. validate-state.sh のテスト
+  // 3. append-comment.sh のテスト
   // -------------------------------------------------------------
-  describe('validate-state.sh', () => {
-    const getStatePath = () => path.join(tmpDir, '.claude/socratic-state.json');
-
-    it('should return NOT_FOUND when state file does not exist', () => {
-      const res = runScript('.claude/skills/socratic-review/scripts/validate-state.sh', ['validate']);
-      expect(res.stdout).toBe('NOT_FOUND');
+  describe('append-comment.sh', () => {
+    it('should fail with exit code 1 if target file does not exist', () => {
+      const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
+        path.join(tmpDir, 'missing.js'),
+        '1',
+        'sec-qa-expert',
+        '質問',
+        '回答',
+        'resolved',
+      ]);
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
     });
 
-    it('should initialize state file correctly on "init"', () => {
-      const issueUrl = 'https://github.com/example/repo/issues/42';
-      const res = runScript('.claude/skills/socratic-review/scripts/validate-state.sh', ['init', issueUrl]);
+    it('should insert a "//" comment before the target line in a .ts file', () => {
+      const targetFile = path.join(tmpDir, 'token.ts');
+      fs.writeFileSync(targetFile, 'function foo() {\n  return 1;\n}\n');
 
-      expect(res.stdout).toContain('INITIALIZED: .claude/socratic-state.json');
-      expect(fs.existsSync(getStatePath())).toBe(true);
-
-      const content = JSON.parse(fs.readFileSync(getStatePath(), 'utf-8'));
-      expect(content.version).toBe('1.0');
-      expect(content.issue_url).toBe(issueUrl);
-      expect(content.status).toBe('in_progress');
-    });
-
-    it('should return VALID after initialization when validated', () => {
-      runScript('.claude/skills/socratic-review/scripts/validate-state.sh', ['init', 'https://github.com/example/repo/issues/1']);
-      const res = runScript('.claude/skills/socratic-review/scripts/validate-state.sh', ['validate']);
-
-      expect(res.stdout).toBe('VALID');
-    });
-
-    it('should append Q&A item into json on "append"', () => {
-      runScript('.claude/skills/socratic-review/scripts/validate-state.sh', ['init', 'https://github.com/example/repo/issues/1']);
-
-      const res = runScript('.claude/skills/socratic-review/scripts/validate-state.sh', [
-        'append',
+      const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
+        targetFile,
+        '2',
         'sec-qa-expert',
         'SQLインジェクションの対策は？',
         'プレースホルダーを使用します',
         'resolved',
       ]);
 
-      expect(res.stdout).toBe('APPENDED');
+      expect(res.stdout).toBe(`APPENDED: ${targetFile}:2`);
 
-      const content = JSON.parse(fs.readFileSync(getStatePath(), 'utf-8'));
-      expect(content.qa_list).toHaveLength(1);
-      expect(content.qa_list[0]).toEqual({
-        expert: 'sec-qa-expert',
-        question: 'SQLインジェクションの対策は？',
-        answer: 'プレースホルダーを使用します',
-        status: 'resolved',
-      });
-    });
-  });
-
-  // -------------------------------------------------------------
-  // 4. write-decisions.sh のテスト
-  // -------------------------------------------------------------
-  describe('write-decisions.sh', () => {
-    it('should fail with exit code 1 if state file does not exist', () => {
-      const res = runScript('.claude/skills/socratic-review/scripts/write-decisions.sh');
-      expect(res.exitCode).toBe(1);
-      expect(res.stdout).toContain('ERROR: State file not found.');
+      const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
+      expect(lines[1]).toContain('//');
+      expect(lines[1]).toContain('[socratic-review]');
+      expect(lines[1]).toContain('SQLインジェクションの対策は？');
+      expect(lines[1]).toContain('プレースホルダーを使用します');
+      expect(lines[2]).toBe('  return 1;');
     });
 
-    it('should append resolved Q&As from state mock file into DECISIONS.md', () => {
-      // 1. .claude/socratic-state.json のモックファイルを配置
-      fs.mkdirSync(path.join(tmpDir, '.claude'), { recursive: true });
-      const mockStateData = {
-        version: '1.0',
-        issue_url: 'https://github.com/example/repo/issues/1',
-        status: 'in_progress',
-        qa_list: [
-          {
-            expert: 'sec-qa-expert',
-            question: 'SQLインジェクションの対策は？',
-            answer: 'パラメータ化クエリを使用',
-            status: 'resolved',
-          },
-          {
-            expert: 'ops-expert',
-            question: 'スキップされた質問',
-            answer: 'スキップ理由',
-            status: 'skipped',
-          },
-        ],
-      };
-      fs.writeFileSync(path.join(tmpDir, '.claude/socratic-state.json'), JSON.stringify(mockStateData, null, 2));
+    it('should insert a "#" comment before the target line in a .py file', () => {
+      const targetFile = path.join(tmpDir, 'app.py');
+      fs.writeFileSync(targetFile, 'def foo():\n    return 1\n');
 
-      // 2. DECISIONS.md の初期ファイルを作成
-      const decisionsPath = path.join(tmpDir, 'DECISIONS.md');
-      fs.writeFileSync(decisionsPath, '# Architecture Decisions\n');
+      const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
+        targetFile,
+        '2',
+        'ops-expert',
+        'エラーログは必要か？',
+        'スキップ',
+        'skipped',
+      ]);
 
-      // 3. write-decisions.sh 実行
-      const res = runScript('.claude/skills/socratic-review/scripts/write-decisions.sh');
+      expect(res.stdout).toBe(`APPENDED: ${targetFile}:2`);
 
-      expect(res.exitCode).toBe(0);
-      expect(res.stdout).toBe('WRITTEN_TO_DECISIONS: DECISIONS.md');
-
-      // 4. DECISIONS.md の結果検証
-      const decisionsContent = fs.readFileSync(decisionsPath, 'utf-8');
-      expect(decisionsContent).toContain('## Architecture Decision -');
-      expect(decisionsContent).toContain('- **Q (sec-qa-expert):** SQLインジェクションの対策は？');
-      expect(decisionsContent).toContain('- **Decision:** パラメータ化クエリを使用');
-      expect(decisionsContent).not.toContain('スキップされた質問');
+      const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
+      expect(lines[1].trim().startsWith('#')).toBe(true);
+      expect(lines[1]).toContain('skipped');
     });
   });
 });

@@ -18,7 +18,8 @@
   - `--depth`: レビューの深さ調整 (`quick`: 3問 / `standard`: 7問 / `deep`: 15問)
   - `--focus`: 特定のコンポーネントや関数に絞ったレビュー
   - `--non-interactive`: TTYなし/CI環境モード。問答を待たず専門家の推論のみで自己完結し報告
-  - `--write-decisions`: レビュー完了時、合意事項を `DECISIONS.md` へ自動記録
+- **📝 解決した問いをコードにインラインコメントとして記録**
+  - 問いが解決するたびに、専門家が指摘した該当ファイル・行の直前へ質問と回答をコメントとして即座に追記。
 
 ---
 
@@ -75,11 +76,10 @@ claude mcp add github \
   - `arch-expert.md`
   - `ops-expert.md`
   - `ui-ux-expert.md`
-- **`scripts/`**: 状態管理・差分取得用シェルスクリプト
+- **`scripts/`**: 差分取得・コメント記録用シェルスクリプト
   - `read-readme.sh`: README 情報の抽出
   - `fetch-diff.sh`: diff の取得とタグ自動分類
-  - `validate-state.sh`: 状態ファイル (`.claude/socratic-state.json`) の検証・永続化
-  - `write-decisions.sh`: 解決済み問いの `DECISIONS.md` への書き出し
+  - `append-comment.sh`: 解決済み問いを該当ファイルの該当行にインラインコメントとして追記
 
 ---
 
@@ -100,9 +100,6 @@ claude mcp add github \
 
 # 特定の認証モジュールに集中してレビューしたい場合
 /socratic-review --focus="src/auth"
-
-# レビュー完了後に合意事項を DECISIONS.md に記録したい場合
-/socratic-review --write-decisions
 ```
 
 ---
