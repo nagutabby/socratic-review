@@ -26,12 +26,14 @@ model: sonnet
 1. 以下のシェルスクリプトを実行して情報を取得する：
    - `.claude/skills/socratic-review/scripts/read-readme.sh` を実行し、プロジェクト概要を取得する。
    - `.claude/skills/socratic-review/scripts/fetch-diff.sh "<ベースブランチ>" "<フォーカス対象>"` を実行し、git diff の要約とカテゴリタグ (`[Tags: ...]`) を取得する（`--focus` が指定されている場合は第2引数に渡す）。
-2. `spec-explorer` に上記スクリプトの出力と Issue (GitHub MCP経由) を読み込ませ調査を実行する。
+   - `.claude/skills/socratic-review/scripts/fetch-github-context.sh` を実行し、`gh` コマンド経由で現在のブランチに紐づくPRとその変更ファイル一覧、および（PR本文のクローズキーワードから自動検出した）Issueを取得する。
+   - 出力に `ISSUE: NOT_FOUND` が含まれる場合は自動検出に失敗しているため、ユーザーに **Issue番号ではなくIssue URL** を尋ね、`.claude/skills/socratic-review/scripts/fetch-github-context.sh "<Issue URL>"` を再実行してIssueを取得する。
+2. `spec-explorer` に上記スクリプトの出力（README・diff・PR・Issue）を読み込ませ調査を実行する。
 3. `fetch-diff.sh` が検出した変更カテゴリに基づき、関連する専門家エージェント（`sec-qa-expert`, `arch-expert`, `ops-expert`, `ui-ux-expert`）**のみ**を呼び出し、指摘を取得する。各専門家は懸念の根拠となる**ファイルパスと行番号**、および**優先度（高/中/低）**を必ず明記する。
 4. 「指摘なし」以外を返した全専門家の問いを1つのリストに集約し、**優先度順（高 → 中 → 低）**に並べ替える。同一優先度内では専門家から取得した順序を維持する。この並べ替え済みリストを「3. 対話モードの実行」における出題順とする。
 
 ## 2. 非対話モード（--non-interactive）の動作
-- TTYなしまたは `--non-interactive` 指定時、ユーザーへ一問一答を行わず、専門家からの全指摘と推定推奨回答を一度にまとめ、そのまま GitHub MCP ツールでPRコメント投稿して即座に完了する。
+- TTYなしまたは `--non-interactive` 指定時、ユーザーへ一問一答を行わず、専門家からの全指摘と推定推奨回答を一度にまとめ、そのまま `gh pr comment <PR番号> --body "<まとめ本文>"` を実行してPRコメント投稿し即座に完了する。
 
 ## 3. 対話モードの実行（一問一答 & 深度制御）
 - 「1-4. 優先度に基づく整列」で並べ替えた問いのリストを**優先度が高いものから順**に出題する。「0. 問答数の決定」で確定した最大問答数に達するまで、1回につき**1つの問いのみ**を出す。
@@ -53,5 +55,5 @@ model: sonnet
 - **C) スキップ:** 今回のPR対象外として、理由を明記して記録に残す
 
 ## 5. 完了処理（PRコメント）
-- すべての問いが完了したら、`spec-explorer` を介して GitHub MCP でPRコメントを投稿・更新する。
+- すべての問いが完了したら、`gh pr comment <PR番号> --body "<まとめ本文>"` でPRコメントを投稿する。既に本セッションで投稿済みの場合は `gh pr comment <PR番号> --edit-last --body "<更新後の本文>"` で更新する。
 - 各問答は都度 `append-comment.sh` により該当ファイルへインラインコメントとして記録済みのため、追加の状態保存・後処理は不要。

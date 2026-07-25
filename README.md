@@ -26,7 +26,7 @@
 
 ## 🌐 インストール・グローバル設定（全リポジトリでの利用）
 
-本スキルを任意のプロジェクト（あらゆる Git リポジトリ）から `/socratic-review` で呼び出せるようにするため、ホームディレクトリ配下の Claude 設定ディレクトリへシンボリックリンクを作成し、GitHub MCP サーバーをユーザー範囲（グローバル）で登録します。
+本スキルを任意のプロジェクト（あらゆる Git リポジトリ）から `/socratic-review` で呼び出せるようにするため、ホームディレクトリ配下の Claude 設定ディレクトリへシンボリックリンクを作成し、GitHub CLI (`gh`) を認証済み状態にします。
 
 ### 1. リポジトリのクローン
 まずは本リポジトリをローカルの任意の場所（例: `~/socratic-review`）にクローンします。
@@ -43,26 +43,24 @@ mkdir -p ~/.claude/skills
 ln -s ~/socratic-review/.claude/skills/socratic-review ~/.claude/skills/socratic-review
 ```
 
-### 3. GitHub Personal Access Token (Fine-grained) の取得
-スキルが GitHub の Issue や Pull Request 情報を読み書きできるよう、アクセス権限を絞った Fine-grained PAT を作成します。
-
-1. [GitHub Settings > Personal Access Tokens > Fine-grained tokens](https://github.com/settings/tokens?type=beta) にアクセスし、**「Generate new token」** をクリックします。
-2. **Token name**（例: `claude-code-mcp`）と有効期限（Expiration）を設定します。
-3. **Repository access** で対象のリポジトリ（`All repositories` または特定の対象リポジトリ）を選択します。
-4. **Permissions** 内の **Repository permissions** を以下のように設定します：
-   - **Issues**: `Read & Write`（Issue の参照・取得のため）
-   - **Pull requests**: `Read & Write`（PR 差分参照・コメント投稿のため）
-   - **Contents**: `Read-only`（ファイル内容・コード参照のため）
-5. **「Generate token」** をクリックし、生成されたトークン（`github_pat_...`）をコピーします。
-
-### 4. GitHub MCP サーバーのユーザー登録（`--scope user`）
-取得した PAT を環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` として渡しながら、`claude mcp add` コマンドでグローバル（全プロジェクト共通）に登録します。
+### 3. GitHub CLI (`gh`) のインストールと認証
+本スキルは Issue・Pull Request・リポジトリ内ファイルの取得、および PR へのコメント投稿に [GitHub CLI](https://cli.github.com/) (`gh` コマンド) を使用します。未インストールの場合は先にインストールしてください。
 
 ```bash
-claude mcp add github \
-  --scope user \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN="github_pat_your_token_here" \
-  -- npx -y @modelcontextprotocol/server-github
+# macOS の例
+brew install gh
+```
+
+インストール後、対象リポジトリへの `repo` スコープを含めてログインします。
+
+```bash
+gh auth login
+```
+
+ログイン状態は以下のコマンドで確認できます。
+
+```bash
+gh auth status
 ```
 
 ---
@@ -80,6 +78,8 @@ claude mcp add github \
 - **`scripts/`**: 差分取得・コメント記録用シェルスクリプト
   - `read-readme.sh`: README 情報の抽出
   - `fetch-diff.sh`: diff の取得とタグ自動分類
+  - `fetch-github-context.sh`: `gh` コマンド経由で現在ブランチの PR と、そこから自動検出（または明示指定）した Issue を取得
+  - `fetch-remote-file.sh`: `gh` コマンド経由でリポジトリ内の任意ファイルを指定 ref の内容で取得
   - `append-comment.sh`: 解決済み問いを該当ファイルの該当行にインラインコメントとして追記
 
 ---

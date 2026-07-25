@@ -20,7 +20,7 @@ describe('Shell Scripts Unit Tests', () => {
   });
 
   // ヘルパー関数: スクリプトを絶対パスで指定して一時ディレクトリ（cwd: tmpDir）上で実行する
-  function runScript(scriptRelativePath: string, args: string[] = []): { stdout: string; exitCode: number; } {
+  function runScript(scriptRelativePath: string, args: string[] = [], env?: NodeJS.ProcessEnv): { stdout: string; exitCode: number; } {
     const scriptPath = path.join(projectRoot, scriptRelativePath);
 
     // スクリプト自体の存在確認
@@ -33,6 +33,7 @@ describe('Shell Scripts Unit Tests', () => {
         cwd: tmpDir,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'ignore'],
+        env: env ? { ...process.env, ...env } : process.env,
       });
       return { stdout: stdout.trim(), exitCode: 0 };
     } catch (error: any) {
@@ -41,6 +42,16 @@ describe('Shell Scripts Unit Tests', () => {
         exitCode: error.status ?? 1,
       };
     }
+  }
+
+  // ヘルパー関数: 偽の `gh` コマンドを tmpDir 内に作成し、PATH の先頭に追加した実行環境を返す
+  // (実際の GitHub API を叩かず、決定的に gh の挙動をスタブするため)
+  function stubGh(script: string, extraEnv: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+    const binDir = path.join(tmpDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const ghPath = path.join(binDir, 'gh');
+    fs.writeFileSync(ghPath, `#!/usr/bin/env bash\n${script}\n`, { mode: 0o755 });
+    return { ...extraEnv, PATH: `${binDir}:${process.env.PATH}` };
   }
 
   // -------------------------------------------------------------
@@ -169,6 +180,105 @@ describe('Shell Scripts Unit Tests', () => {
       const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
       expect(lines[1].trim().startsWith('#')).toBe(true);
       expect(lines[1]).toContain('skipped');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 4. fetch-github-context.sh のテスト（gh コマンドをスタブして検証）
+  // -------------------------------------------------------------
+  describe('fetch-github-context.sh', () => {
+    it('should report PR: None and ISSUE: NOT_FOUND when no PR exists for the branch', () => {
+      const env = stubGh('exit 1');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-github-context.sh', [], env);
+
+      expect(res.stdout).toContain('PR: None');
+      expect(res.stdout).toContain('ISSUE: NOT_FOUND');
+    });
+
+    it('should auto-detect the linked issue from the PR body close keyword', () => {
+      const env = stubGh(`
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo '{"number":7,"title":"Fix bug","body":"Closes #42","url":"https://github.com/example/example/pull/7","files":[{"path":"src/a.ts"},{"path":"src/b.ts"}]}'
+  exit 0
+fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  echo '{"number":42,"title":"Sample Issue","body":"Issue body text","url":"https://github.com/example/example/issues/42"}'
+  exit 0
+fi
+exit 1
+`);
+
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-github-context.sh', [], env);
+
+      expect(res.stdout).toContain('PR #7: Fix bug');
+      expect(res.stdout).toContain('- src/a.ts');
+      expect(res.stdout).toContain('- src/b.ts');
+      expect(res.stdout).toContain('Issue #42: Sample Issue');
+      expect(res.stdout).toContain('Issue body text');
+    });
+
+    it('should fetch the issue directly when an issue URL is passed explicitly', () => {
+      const env = stubGh(`
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then exit 1; fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  echo '{"number":99,"title":"Direct Issue","body":"direct body","url":"https://github.com/example/example/issues/99"}'
+  exit 0
+fi
+exit 1
+`);
+
+      const res = runScript(
+        '.claude/skills/socratic-review/scripts/fetch-github-context.sh',
+        ['https://github.com/example/example/issues/99'],
+        env
+      );
+
+      expect(res.stdout).toContain('Issue #99: Direct Issue');
+      expect(res.stdout).toContain('direct body');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 5. fetch-remote-file.sh のテスト（gh コマンドをスタブして検証）
+  // -------------------------------------------------------------
+  describe('fetch-remote-file.sh', () => {
+    it('should decode and print the file content returned by gh api', () => {
+      const env = stubGh(`
+if [ "$1" = "api" ]; then
+  echo -n "Hello File Content" | base64
+  exit 0
+fi
+exit 1
+`);
+
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-remote-file.sh', ['README.md'], env);
+
+      expect(res.stdout).toBe('Hello File Content');
+    });
+
+    it('should include the ref as a query parameter when specified', () => {
+      const argsFile = path.join(tmpDir, 'gh-args.txt');
+      const env = stubGh(
+        `
+echo "$@" >> "${argsFile}"
+if [ "$1" = "api" ]; then
+  echo -n "Ref Content" | base64
+  exit 0
+fi
+exit 1
+`
+      );
+
+      const res = runScript(
+        '.claude/skills/socratic-review/scripts/fetch-remote-file.sh',
+        ['src/index.ts', 'abc123'],
+        env
+      );
+
+      expect(res.stdout).toBe('Ref Content');
+      const recordedArgs = fs.readFileSync(argsFile, 'utf-8');
+      expect(recordedArgs).toContain('contents/src/index.ts?ref=abc123');
     });
   });
 });
