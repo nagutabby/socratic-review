@@ -6,7 +6,7 @@ LINE_NUMBER="${2:?Usage: $0 <file_path> <line_number> <expert> <question> <answe
 EXPERT_NAME="${3:-General}"
 QUESTION="${4:-}"
 ANSWER="${5:-}"
-STATUS="${6:-resolved}" # resolved | skipped
+STATUS="${6:-intended}" # intended
 
 if [ ! -f "$FILE_PATH" ]; then
   echo "ERROR: ファイルが存在しません: ${FILE_PATH}"
