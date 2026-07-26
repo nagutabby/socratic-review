@@ -30,11 +30,11 @@ model: sonnet
 
 ## 1. 調査と専門家パネルの呼び出し
 1. 以下のシェルスクリプトを実行して情報を取得する：
-   - `~/.claude/skills/socratic-review/scripts/read-docs.sh` を実行し、プロジェクト概要（README・ADR・Spec等）を取得する。
+   - `~/.claude/skills/socratic-review/scripts/get-doc-paths.sh` を実行し、プロジェクト概要ドキュメント（README・ADR・Spec等）のファイルパスと見出しアウトラインの一覧を取得する。
    - `~/.claude/skills/socratic-review/scripts/fetch-diff.sh "<ベースブランチ>" "<フォーカス対象>"` を実行し、git diff の要約とカテゴリタグ (`[Tags: ...]`) を取得する（`--focus` が指定されている場合は第2引数に渡す）。
    - `~/.claude/skills/socratic-review/scripts/fetch-pull-request.sh` を実行し、`gh` コマンド経由で現在のブランチに紐づくPRとその変更ファイル一覧を取得する。
    - 「0-1. Issue URLの決定」で確定した **Issue URL** に対し、`~/.claude/skills/socratic-review/scripts/fetch-issue.sh "<Issue URL>"` を実行しIssue本文を取得する。出力に `ISSUE: NOT_FOUND` が含まれる場合は、指定されたURL/番号のIssueが見つからなかった旨をユーザーに伝え、Issue本文は無いものとして扱う（**Issue URL** 自体は「1-2」でそのまま使用する）。
-2. `spec-explorer` を呼び出す際は、上記スクリプトの出力（README・diff・PR・Issue本文）に加えて、確定している **Issue URL** を `Issue URL: <URL>` という独立した行としてプロンプトに明示的に含めて渡し、調査を実行させる。
+2. `spec-explorer` を呼び出す際は、上記スクリプトの出力（README・ADR・Specのファイルパスと見出しアウトラインの一覧、diff、PR、Issue本文）に加えて、確定している **Issue URL** を `Issue URL: <URL>` という独立した行としてプロンプトに明示的に含めて渡す。`spec-explorer` は見出しアウトラインから関連性を判断し、必要なドキュメントを自身のReadツールで読み込んだ上で調査を実行する。
 3. `fetch-diff.sh` が検出した変更カテゴリに基づき、関連する専門家エージェント（`sec-qa-expert`, `arch-expert`, `ops-expert`, `ui-ux-expert`）**のみ**を呼び出し、指摘を取得する。各専門家は懸念の根拠となる**ファイルパスと行番号**、および**優先度（高/中/低）**を必ず明記する。
 4. 「指摘なし」以外を返した全専門家の問いを1つのリストに集約し、**優先度順（高 → 中 → 低）**に並べ替える。同一優先度内では専門家から取得した順序を維持する。この並べ替え済みリストを「3. 対話モードの実行」における出題順とする。
 

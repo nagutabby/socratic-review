@@ -55,64 +55,79 @@ describe('Shell Scripts Unit Tests', () => {
   }
 
   // -------------------------------------------------------------
-  // 1. read-docs.sh のテスト
+  // 1. get-doc-paths.sh のテスト
   // -------------------------------------------------------------
-  describe('read-docs.sh', () => {
+  describe('get-doc-paths.sh', () => {
     it('should report "README: None", "ADR: None" and "SPEC: None" when no doc exists', () => {
       // 空のディレクトリ状態で実行
-      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
       expect(res.stdout).toContain('README: None');
       expect(res.stdout).toContain('ADR: None');
       expect(res.stdout).toContain('SPEC: None');
       expect(res.exitCode).toBe(0);
     });
 
-    it('should detect README.md mock file and output headers and top content', () => {
+    it('should detect README.md mock file and output its path with its full heading outline, not body content', () => {
       // README.md をモック作成
       const mockReadme = `# Project Title
 概要テキスト
 
 ## Architecture
 アーキテクチャの説明
+
+### Components
+コンポーネントの説明
 `;
       fs.writeFileSync(path.join(tmpDir, 'README.md'), mockReadme);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
 
-      expect(res.stdout).toContain('=== README_SUMMARY (README.md) ===');
-      expect(res.stdout).toContain('# Project Title');
-      expect(res.stdout).toContain('## Architecture');
-      expect(res.stdout).toContain('概要テキスト');
+      expect(res.stdout).toContain('=== README_PATHS ===');
+      expect(res.stdout).toContain('Found 1 file(s)');
+      expect(res.stdout).toContain('- README.md');
+      expect(res.stdout).toContain('  - Project Title');
+      expect(res.stdout).toContain('  - Architecture');
+      expect(res.stdout).toContain('  - Components');
+      // 本文はパスと見出しの取得のみで返さない
+      expect(res.stdout).not.toContain('概要テキスト');
+      expect(res.stdout).not.toContain('アーキテクチャの説明');
+      expect(res.stdout).not.toContain('コンポーネントの説明');
     });
 
-    it('should detect ADR files under docs/adr and list them with their title', () => {
+    it('should detect ADR files under docs/adr and list them with their heading outline', () => {
       fs.mkdirSync(path.join(tmpDir, 'docs/adr'), { recursive: true });
       fs.writeFileSync(
         path.join(tmpDir, 'docs/adr/0001-use-postgres.md'),
-        '# 0001 Use PostgreSQL\n\n本文\n'
+        '# 0001 Use PostgreSQL\n\n## Context\n本文\n\n## Decision\n本文\n'
       );
       fs.writeFileSync(
         path.join(tmpDir, 'docs/adr/0002-use-grpc.md'),
         '# 0002 Use gRPC\n\n本文\n'
       );
 
-      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
 
-      expect(res.stdout).toContain('=== ADR_SUMMARY ===');
+      expect(res.stdout).toContain('=== ADR_PATHS ===');
       expect(res.stdout).toContain('Found 2 file(s)');
-      expect(res.stdout).toContain('docs/adr/0001-use-postgres.md: 0001 Use PostgreSQL');
-      expect(res.stdout).toContain('docs/adr/0002-use-grpc.md: 0002 Use gRPC');
+      expect(res.stdout).toContain('- docs/adr/0001-use-postgres.md');
+      expect(res.stdout).toContain('  - 0001 Use PostgreSQL');
+      expect(res.stdout).toContain('  - Context');
+      expect(res.stdout).toContain('  - Decision');
+      expect(res.stdout).toContain('- docs/adr/0002-use-grpc.md');
+      expect(res.stdout).toContain('  - 0002 Use gRPC');
     });
 
-    it('should detect Spec files under a spec/ directory and list them with their title', () => {
+    it('should detect Spec files under a spec/ directory and list them with their heading outline', () => {
       fs.mkdirSync(path.join(tmpDir, 'spec'), { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, 'spec/auth.md'), '# User Auth Spec\n\n本文\n');
+      fs.writeFileSync(path.join(tmpDir, 'spec/auth.md'), '# User Auth Spec\n\n## Endpoints\n本文\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
 
-      expect(res.stdout).toContain('=== SPEC_SUMMARY ===');
+      expect(res.stdout).toContain('=== SPEC_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
-      expect(res.stdout).toContain('spec/auth.md: User Auth Spec');
+      expect(res.stdout).toContain('- spec/auth.md');
+      expect(res.stdout).toContain('  - User Auth Spec');
+      expect(res.stdout).toContain('  - Endpoints');
     });
 
     it('should truncate the ADR listing beyond 20 files', () => {
@@ -122,10 +137,22 @@ describe('Shell Scripts Unit Tests', () => {
         fs.writeFileSync(path.join(tmpDir, `docs/adr/${n}-decision.md`), `# ${n} Decision\n`);
       }
 
-      const res = runScript('.claude/skills/socratic-review/scripts/read-docs.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
 
       expect(res.stdout).toContain('Found 25 file(s)');
       expect(res.stdout).toContain('... (and 5 more, truncated)');
+    });
+
+    it('should truncate the per-file heading outline beyond 15 headings', () => {
+      const headings = Array.from({ length: 18 }, (_, i) => `## Heading ${i + 1}`).join('\n\n');
+      fs.writeFileSync(path.join(tmpDir, 'README.md'), `# Title\n\n${headings}\n`);
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      // 上限15件には先頭の "# Title" 自身も含まれるため、Heading 14 までが表示される
+      expect(res.stdout).toContain('  - Heading 14');
+      expect(res.stdout).not.toContain('  - Heading 15');
+      expect(res.stdout).toContain('  - ... (more headings truncated)');
     });
   });
 
