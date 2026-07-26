@@ -57,6 +57,109 @@ async function runMainSocraticSkill(userPromptMock: string): Promise<string> {
   return response.text || '';
 }
 
+// 専門家パネルの問いの箇条書き行（例: "- **🛡️ [sec-expert]:** ..." や
+// ブラケットなしの "- **🛡️ sec-expert:** ..." のような表記ゆれも許容）から
+// アイコンと、そこに含まれる専門家名（5種類のうちどれが登場したか）を抽出する
+// （SKILL.md 側のテンプレート行 "🛡️ / 🔍 / 🏛️ / ⚙️ / 🎨" のような
+//  選択肢の羅列と区別するため、実際の問いの箇条書き行のみを対象にする）
+const ALL_EXPERT_NAMES = ['sec-expert', 'qa-expert', 'arch-expert', 'ops-expert', 'ui-ux-expert'];
+
+function extractExpertMentions(text: string): { icon: string; names: string[] }[] {
+  const ICONS = ['🛡️', '🔍', '🏛️', '⚙️', '🎨'];
+  const mentions: { icon: string; names: string[] }[] = [];
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim();
+    if (!line.startsWith('-')) continue;
+    const icon = ICONS.find((i) => line.includes(i));
+    if (!icon) continue;
+    const names = ALL_EXPERT_NAMES.filter((n) => line.includes(n));
+    mentions.push({ icon, names });
+  }
+  return mentions;
+}
+
+// SKILL.md の「タグ→専門家エージェントの対応表」を検証するケース。
+// fetch-diff.sh の出力（[Tags: ...]）をモックで直接与え、タグ検出そのものではなく
+// 「そのタグに対して正しい専門家（アイコン・名前の両方）だけが呼ばれるか」という
+// 対応表の決定論的な振る舞いのみを検証する。
+const TAG_TO_EXPERT_CASES = [
+  {
+    tag: 'Security',
+    expertIcon: '🛡️',
+    expertName: 'sec-expert',
+    file: 'src/auth/config.ts',
+    diffBody: '+ const apiKey = "sk_live_1234567890abcdef";\n  + fetch(url, { headers: { Authorization: apiKey } });',
+  },
+  {
+    tag: 'QA',
+    expertIcon: '🔍',
+    expertName: 'qa-expert',
+    file: 'src/utils/divide.ts',
+    diffBody: '+ function divide(a, b) {\n  +   return a / b;\n  + }',
+  },
+  {
+    tag: 'Arch',
+    expertIcon: '🏛️',
+    expertName: 'arch-expert',
+    file: 'src/core/orderService.ts',
+    diffBody: '+ class OrderService {\n  +   constructor() {\n  +     this.db = new PostgresClient();\n  +   }\n  + }',
+  },
+  {
+    tag: 'Ops',
+    expertIcon: '⚙️',
+    expertName: 'ops-expert',
+    file: 'src/services/paymentService.ts',
+    diffBody: '+ try {\n  +   await chargeCard(orderId);\n  + } catch (e) {\n  +   // エラーを握りつぶす\n  + }',
+  },
+  {
+    tag: 'UI/UX',
+    expertIcon: '🎨',
+    expertName: 'ui-ux-expert',
+    file: 'src/components/DeleteButton.tsx',
+    diffBody: '+ <button onClick={onDelete}>\n  +   <TrashIcon />\n  + </button>',
+  },
+  {
+    tag: 'Logic/General',
+    expertIcon: '🔍',
+    expertName: 'qa-expert',
+    file: 'src/lib/arrayUtils.ts',
+    diffBody: '+ function first(arr) {\n  +   return arr[0];\n  + }',
+  },
+];
+
+describe('Category Tag -> Expert Dispatch (SKILL.md Tag Table)', () => {
+  it.each(TAG_TO_EXPERT_CASES)(
+    'should dispatch only the expert mapped to the $tag tag',
+    async ({ tag, expertIcon, expertName, file, diffBody }) => {
+      const userPromptMock = `
+/socratic-review --depth=quick --issue="https://github.com/example/example/issues/1"
+
+[モック環境情報]:
+- カレントブランチ: feature/mock
+- fetch-diff.sh の出力:
+  === DIFF_SUMMARY ===
+  Changed Files:
+  ${file}
+
+  === CATEGORY_TAGS ===
+  [Tags: ${tag}]
+- git diff:
+  diff --git a/${file} b/${file}
+  ${diffBody}
+`;
+
+      const agentOutput = await runMainSocraticSkill(userPromptMock);
+
+      const mentions = extractExpertMentions(agentOutput);
+      expect(mentions.length).toBeGreaterThan(0);
+      expect(
+        mentions.every((m) => m.icon === expertIcon && m.names.length === 1 && m.names[0] === expertName)
+      ).toBe(true);
+    },
+    20000
+  );
+});
+
 describe('Main Socratic Skill Integration Test (SKILL.md System Prompt)', () => {
   it('should accept mocked user diff and produce initial Socratic question formatted correctly', async () => {
     // ユーザープロンプトのモック

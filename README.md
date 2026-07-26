@@ -1,14 +1,15 @@
 # 🏛️ Socratic Review Skill (`/socratic-review`)
 
-`socratic-review` は、GitHub Issue、README、および `git diff` の変更差分から、セキュリティ・アーキテクチャ・運用（Ops）・UI/UX の専門家パネルが対話形式（ソクラテス式問答法）で仕様の抜け漏れや潜在的リスクを深掘りする Claude Code 用の拡張スキルです。
+`socratic-review` は、GitHub Issue、README、および `git diff` の変更差分から、セキュリティ・QA・アーキテクチャ・運用（Ops）・UI/UX の専門家パネルが対話形式（ソクラテス式問答法）で仕様の抜け漏れや潜在的リスクを深掘りする Claude Code 用の拡張スキルです。
 
 ---
 
 ## 🌟 主な機能
 
 - **🤖 専門家パネルによる自動判定**
-  - `spec-explorer`: 差分解析・カテゴリ検出（DB, API, Security, UI/UX 等）
-  - `sec-qa-expert`: セキュリティ脆弱性・境界値・例外系の指摘
+  - `spec-explorer`: 差分解析・カテゴリ検出（Security, QA, Arch, Ops, UI/UX 等）
+  - `sec-expert`: セキュリティ脆弱性・認証認可・データ漏洩の指摘
+  - `qa-expert`: 境界値・例外系・エッジケースの指摘
   - `arch-expert`: モジュール境界・依存関係・保守性の指摘
   - `ops-expert`: 可観測性・ログ・エラーハンドリング・運用リスクの指摘
   - `ui-ux-expert`: アクセシビリティ・画面遷移・操作感の指摘
@@ -74,7 +75,8 @@ gh auth status
 - **`SKILL.md`**: メインエージェント（オーケストレーター）の指示書
 - **`agents/`**: 各専門家サブエージェントの定義 (`.md`)
   - `spec-explorer.md`
-  - `sec-qa-expert.md`
+  - `sec-expert.md`
+  - `qa-expert.md`
   - `arch-expert.md`
   - `ops-expert.md`
   - `ui-ux-expert.md`

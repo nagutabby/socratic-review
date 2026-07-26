@@ -51,12 +51,12 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   });
 
   // -------------------------------------------------------------
-  // 2. sec-qa-expert.md のテスト
+  // 2. sec-expert.md のテスト
   // -------------------------------------------------------------
-  describe('sec-qa-expert', () => {
+  describe('sec-expert', () => {
     it('should ask probing questions for SQL injection risks', async () => {
       const mockPrompt = 'SQLクエリの生成において、ユーザー入力文字列を直接結合しています。';
-      const output = await runSubAgent('sec-qa-expert.md', mockPrompt);
+      const output = await runSubAgent('sec-expert.md', mockPrompt);
 
       expect(output).toContain('🛡️');
       expect(output).toMatch(/[？\?]/);
@@ -65,7 +65,28 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
 
     it('should return "指摘なし" for non-security changes', async () => {
       const mockPrompt = 'ボタンのテキスト色を青から緑に変更しました。';
-      const output = await runSubAgent('sec-qa-expert.md', mockPrompt);
+      const output = await runSubAgent('sec-expert.md', mockPrompt);
+
+      expect(output).toContain('指摘なし');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 2b. qa-expert.md のテスト
+  // -------------------------------------------------------------
+  describe('qa-expert', () => {
+    it('should ask probing questions for missing boundary/exception handling', async () => {
+      const mockPrompt = 'この関数は配列が空の場合を考慮しておらず、例外処理も行っていません。';
+      const output = await runSubAgent('qa-expert.md', mockPrompt);
+
+      expect(output).toContain('🔍');
+      expect(output).toMatch(/[？\?]/);
+      expect(output).not.toContain('指摘なし');
+    });
+
+    it('should return "指摘なし" for non-boundary/exception changes', async () => {
+      const mockPrompt = '認証トークンの発行ロジックを変更しました。';
+      const output = await runSubAgent('qa-expert.md', mockPrompt);
 
       expect(output).toContain('指摘なし');
     });
@@ -93,7 +114,7 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   });
 
   // -------------------------------------------------------------
-  // 4. ops-expert.md のテスト
+  // 5. ops-expert.md のテスト
   // -------------------------------------------------------------
   describe('ops-expert', () => {
     it('should ask probing questions for missing error logging in async catch blocks', async () => {
@@ -114,7 +135,7 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   });
 
   // -------------------------------------------------------------
-  // 5. ui-ux-expert.md のテスト
+  // 6. ui-ux-expert.md のテスト
   // -------------------------------------------------------------
   describe('ui-ux-expert', () => {
     it('should ask probing questions for missing aria-label or accessible features', async () => {

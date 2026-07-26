@@ -249,30 +249,57 @@ describe('Shell Scripts Unit Tests', () => {
       execSync('git add . && git commit -m "initial"', { cwd: tmpDir });
     });
 
-    it('should categorize Security and DB tags based on diff file paths', () => {
-      // 変更ファイルをモック生成してコミット（diff が発生する状態を作る）
-      fs.mkdirSync(path.join(tmpDir, 'src/db'), { recursive: true });
-      fs.mkdirSync(path.join(tmpDir, 'src/auth'), { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, 'src/db/schema.prisma'), 'model User {}');
-      fs.writeFileSync(path.join(tmpDir, 'src/auth/token.ts'), 'export const token = ""');
-      execSync('git add . && git commit -m "add db and auth"', { cwd: tmpDir });
+    const TAG_CASES = [
+      // Security
+      { tag: 'Security', dir: 'src/auth', file: 'login.ts', content: 'export const login = () => {}' },
+      { tag: 'Security', dir: 'src/security', file: 'crypto.ts', content: 'export const encrypt = () => {}' },
+      { tag: 'Security', dir: 'src/controllers', file: 'session.controller.ts', content: 'export class SessionController {}' },
+      // QA
+      { tag: 'QA', dir: 'tests/unit', file: 'example.test.ts', content: 'test("x", () => {});' },
+      { tag: 'QA', dir: 'spec', file: 'user.spec.ts', content: 'describe("user", () => {});' },
+      { tag: 'QA', dir: 'src/validators', file: 'input-validator.ts', content: 'export const validate = () => {}' },
+      // Arch
+      { tag: 'Arch', dir: 'src/core', file: 'container.ts', content: 'export class Container {}' },
+      { tag: 'Arch', dir: 'src/interfaces', file: 'user-repository.ts', content: 'export interface UserRepository {}' },
+      { tag: 'Arch', dir: 'src/db', file: 'schema.prisma', content: 'model User {}' },
+      // Ops
+      { tag: 'Ops', dir: 'config', file: 'docker-compose.yml', content: 'services: {}' },
+      { tag: 'Ops', dir: '.github/workflows', file: 'ci.yml', content: 'name: CI' },
+      { tag: 'Ops', dir: 'infra/terraform', file: 'main.tf', content: 'resource "aws_instance" "x" {}' },
+      // UI/UX
+      { tag: 'UI/UX', dir: 'src/components', file: 'Button.tsx', content: 'export const Button = () => null;' },
+      { tag: 'UI/UX', dir: 'src/views', file: 'HomeView.vue', content: '<template></template>' },
+      { tag: 'UI/UX', dir: 'src/styles', file: 'app.css', content: 'body { margin: 0; }' },
+      // Logic/General (フォールバック)
+      { tag: 'Logic/General', dir: 'src/utils', file: 'helpers.ts', content: 'export const add = (a,b) => a+b;' },
+      { tag: 'Logic/General', dir: 'src/lib', file: 'math.ts', content: 'export const square = (n) => n*n;' },
+      { tag: 'Logic/General', dir: 'src/models', file: 'order-summary.ts', content: 'export class OrderSummary {}' },
+    ];
+
+    it.each(TAG_CASES)('should tag files under $dir as $tag', ({ tag, dir, file, content }) => {
+      fs.mkdirSync(path.join(tmpDir, dir), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, dir, file), content);
+      execSync('git add . && git commit -m "add category file"', { cwd: tmpDir });
 
       const res = runScript('.claude/skills/socratic-review/scripts/fetch-diff.sh', ['HEAD~1']);
 
       expect(res.stdout).toContain('=== DIFF_SUMMARY ===');
-      expect(res.stdout).toContain('src/db/schema.prisma');
-      expect(res.stdout).toContain('src/auth/token.ts');
-      expect(res.stdout).toContain('[Tags: DB,Security]');
+      expect(res.stdout).toContain(`${dir}/${file}`);
+      expect(res.stdout).toContain(`[Tags: ${tag}]`);
     });
 
-    it('should fallback to "Logic/General" when no specific keyword is matched', () => {
-      fs.mkdirSync(path.join(tmpDir, 'src/utils'), { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, 'src/utils/helpers.ts'), 'export const add = (a,b) => a+b;');
-      execSync('git add . && git commit -m "add helper"', { cwd: tmpDir });
+    it('should return multiple category tags when the diff spans more than one category', () => {
+      fs.mkdirSync(path.join(tmpDir, 'src/auth'), { recursive: true });
+      fs.mkdirSync(path.join(tmpDir, 'src/components'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'src/auth/token.ts'), 'export const token = ""');
+      fs.writeFileSync(path.join(tmpDir, 'src/components/View.tsx'), 'export const View = () => null;');
+      execSync('git add . && git commit -m "add auth and component files"', { cwd: tmpDir });
 
       const res = runScript('.claude/skills/socratic-review/scripts/fetch-diff.sh', ['HEAD~1']);
 
-      expect(res.stdout).toContain('[Tags: Logic/General]');
+      expect(res.stdout).toContain('src/auth/token.ts');
+      expect(res.stdout).toContain('src/components/View.tsx');
+      expect(res.stdout).toContain('[Tags: Security,UI/UX]');
     });
   });
 
