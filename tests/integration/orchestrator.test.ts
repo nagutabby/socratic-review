@@ -26,7 +26,7 @@ function extractFormatSkeleton(text: string): string {
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();
     const headerMatch = line.match(headerPattern);
-    if (headerMatch) {
+    if (headerMatch && headerMatch[1] !== undefined) {
       skeletonLines.push(headerMatch[1]);
       continue;
     }

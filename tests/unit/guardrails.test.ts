@@ -17,11 +17,11 @@ function readAgentFile(fileName: string): string {
 
 function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return {};
+  if (!match || match[1] === undefined) return {};
   const fields: Record<string, string> = {};
   for (const line of match[1].split('\n')) {
     const m = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
-    if (m) fields[m[1]] = m[2].trim();
+    if (m && m[1] !== undefined && m[2] !== undefined) fields[m[1]] = m[2].trim();
   }
   return fields;
 }
@@ -41,7 +41,7 @@ describe('Sub-agent tool restriction (least privilege)', () => {
     const frontmatter = parseFrontmatter(content);
 
     expect(frontmatter.tools).toBeDefined();
-    const tools = frontmatter.tools.split(',').map((t) => t.trim());
+    const tools = (frontmatter.tools ?? '').split(',').map((t) => t.trim());
     expect(tools.sort()).toEqual(['Glob', 'Grep', 'Read'].sort());
 
     // Bash/Edit/Write/Agent など、分析専門家に不要な権限が紛れ込んでいないことを確認

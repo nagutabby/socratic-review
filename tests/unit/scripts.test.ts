@@ -349,7 +349,7 @@ describe('Shell Scripts Unit Tests', () => {
       expect(res.stdout).toBe(`APPENDED: ${targetFile}:2`);
 
       const lines = fs.readFileSync(targetFile, 'utf-8').split('\n');
-      expect(lines[1].trim().startsWith('#')).toBe(true);
+      expect(lines[1]?.trim().startsWith('#')).toBe(true);
       expect(lines[1]).toContain('ログ出力は不要と判断しているため意図的です');
       expect(lines[1]).not.toContain('[socratic-review]');
     });
