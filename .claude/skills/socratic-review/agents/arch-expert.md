@@ -2,6 +2,7 @@
 name: arch-expert
 description: コンポーネント間の依存関係、モジュール境界、拡張性、保守性の観点から評価する専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

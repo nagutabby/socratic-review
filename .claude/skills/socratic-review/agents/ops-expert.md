@@ -2,6 +2,7 @@
 name: ops-expert
 description: ログ出力、メトリクス、環境変数、エラーハンドリング、運用・非機能要件の観点から評価する専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

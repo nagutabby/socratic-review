@@ -19,6 +19,21 @@ for BRANCH in $PROTECTED_BRANCHES; do
   fi
 done
 
+# `git add -A` は作業ツリー上の全ファイルを無差別にステージするため、
+# レビューと無関係にたまたま置かれていた機密情報ファイル（.env、秘密鍵等）まで
+# 誤ってcommitしてしまう懸念がある。ステージ前に変更・未追跡ファイルのパスを
+# 機密ファイルによくあるパターンと照合し、該当する場合はcommitを中断する。
+SUSPICIOUS_PATTERN='\.(env(\..+)?|pem|key|pfx|p12|pgpass)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|secrets?)\.(json|ya?ml)$|(^|/)\.npmrc$|service[-_]?account.*\.json$'
+
+CHANGED_PATHS=$(git status --porcelain | sed -E 's/^.{3}//' | sed -E 's/.* -> //')
+SUSPICIOUS_FILES=$(echo "$CHANGED_PATHS" | grep -iE "$SUSPICIOUS_PATTERN" || true)
+
+if [ -n "$SUSPICIOUS_FILES" ]; then
+  echo "ERROR: 機密情報を含む可能性のあるファイルが検出されたためcommitを中断しました:"
+  echo "$SUSPICIOUS_FILES"
+  exit 1
+fi
+
 git add -A
 
 if git diff --cached --quiet; then

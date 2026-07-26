@@ -2,6 +2,7 @@
 name: sec-expert
 description: 脆弱性、認証・認可、データ漏洩などセキュリティリスクに特化して評価する専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

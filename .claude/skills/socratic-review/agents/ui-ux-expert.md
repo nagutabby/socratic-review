@@ -2,6 +2,7 @@
 name: ui-ux-expert
 description: ユーザーインターフェース、アクセシビリティ、インタラクションの観点から評価する専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

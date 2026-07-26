@@ -2,6 +2,7 @@
 name: spec-explorer
 description: diffおよび関連ファイルを調査し、変更のファクト抽出とカテゴリタグ分類を行う専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

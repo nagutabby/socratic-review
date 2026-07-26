@@ -353,6 +353,48 @@ describe('Shell Scripts Unit Tests', () => {
       expect(lines[1]).toContain('ログ出力は不要と判断しているため意図的です');
       expect(lines[1]).not.toContain('[socratic-review]');
     });
+
+    it('should refuse to write to a file outside the working directory (path containment)', () => {
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'socratic-script-test-outside-'));
+      const outsideFile = path.join(outsideDir, 'secret.txt');
+      fs.writeFileSync(outsideFile, 'line1\nline2\n');
+
+      try {
+        const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
+          outsideFile,
+          '1',
+          '作業ディレクトリ外への書き込み試行',
+        ]);
+
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+        expect(fs.readFileSync(outsideFile, 'utf-8')).toBe('line1\nline2\n');
+      } finally {
+        fs.rmSync(outsideDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should refuse to write to a file reached via a ".." path traversal out of the working directory', () => {
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'socratic-script-test-outside-'));
+      const outsideFile = path.join(outsideDir, 'secret.txt');
+      fs.writeFileSync(outsideFile, 'line1\n');
+
+      const relativeTraversalPath = path.join(path.relative(tmpDir, outsideDir), 'secret.txt');
+
+      try {
+        const res = runScript('.claude/skills/socratic-review/scripts/append-comment.sh', [
+          relativeTraversalPath,
+          '1',
+          '作業ディレクトリ外への書き込み試行',
+        ]);
+
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+        expect(fs.readFileSync(outsideFile, 'utf-8')).toBe('line1\n');
+      } finally {
+        fs.rmSync(outsideDir, { recursive: true, force: true });
+      }
+    });
   });
 
   // -------------------------------------------------------------
@@ -502,6 +544,38 @@ exit 1
 
       expect(res.exitCode).toBe(0);
       expect(res.stdout).toBe('NO_CHANGES: commit対象の変更がありません');
+    });
+
+    it.each(['.env', '.env.local', 'id_rsa', 'credentials.json', 'secrets.yaml', 'server.pem'])(
+      'should refuse to commit when a suspicious secret-like file "%s" is present, and stage nothing',
+      (secretFileName) => {
+        execSync('git checkout -b feature/foo', { cwd: tmpDir });
+        fs.writeFileSync(path.join(tmpDir, 'change.txt'), 'changed');
+        fs.writeFileSync(path.join(tmpDir, secretFileName), 'super-secret-value');
+
+        const res = runScript('.claude/skills/socratic-review/scripts/commit.sh', ['add change.txt']);
+
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+        expect(res.stdout).toContain(secretFileName);
+
+        const status = execSync('git status --porcelain', { cwd: tmpDir, encoding: 'utf-8' });
+        // 何もステージされておらず、commitも行われていないこと
+        expect(status).not.toContain('A ');
+        const log = execSync('git log --oneline -1', { cwd: tmpDir, encoding: 'utf-8' });
+        expect(log).not.toContain('add change.txt');
+      }
+    );
+
+    it('should commit normally when no suspicious secret-like files are present', () => {
+      execSync('git checkout -b feature/foo', { cwd: tmpDir });
+      fs.writeFileSync(path.join(tmpDir, 'change.txt'), 'changed');
+      fs.writeFileSync(path.join(tmpDir, 'environment.ts'), 'export const env = "production";');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/commit.sh', ['add change.txt']);
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('COMMITTED: feature/foo - add change.txt');
     });
   });
 

@@ -2,6 +2,7 @@
 name: qa-expert
 description: 境界値、例外処理、エッジケースの見落としに特化して評価する専門家エージェント。
 model: haiku
+tools: Read, Grep, Glob
 ---
 
 # 目的

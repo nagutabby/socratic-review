@@ -10,6 +10,25 @@ if [ ! -f "$FILE_PATH" ]; then
   exit 1
 fi
 
+# 作業ディレクトリ（カレントディレクトリ）配下のファイルのみを書き込み対象として許可する。
+# シンボリックリンクや `../` を用いたパストラバーサルで作業ディレクトリ外のファイル
+# （例: 設定ファイルや認証情報など）が書き換えられることを防ぐためのcontainmentチェック。
+WORKDIR_ROOT=$(pwd -P)
+FILE_DIR=$(cd "$(dirname "$FILE_PATH")" 2>/dev/null && pwd -P)
+if [ -z "$FILE_DIR" ]; then
+  echo "ERROR: ファイルの親ディレクトリを解決できませんでした: ${FILE_PATH}"
+  exit 1
+fi
+RESOLVED_PATH="${FILE_DIR}/$(basename "$FILE_PATH")"
+
+case "$RESOLVED_PATH" in
+  "$WORKDIR_ROOT"/*) ;;
+  *)
+    echo "ERROR: 作業ディレクトリ外のファイルへの書き込みは禁止されています: ${FILE_PATH}"
+    exit 1
+    ;;
+esac
+
 if ! [[ "$LINE_NUMBER" =~ ^[0-9]+$ ]] || [ "$LINE_NUMBER" -lt 1 ]; then
   echo "ERROR: 行番号は1以上の数値で指定してください: ${LINE_NUMBER}"
   exit 1
