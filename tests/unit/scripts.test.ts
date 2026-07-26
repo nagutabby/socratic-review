@@ -55,12 +55,12 @@ describe('Shell Scripts Unit Tests', () => {
   }
 
   // -------------------------------------------------------------
-  // 1. get-doc-paths.sh のテスト
+  // 1. get-doc-paths-and-headings.sh のテスト
   // -------------------------------------------------------------
-  describe('get-doc-paths.sh', () => {
+  describe('get-doc-paths-and-headings.sh', () => {
     it('should report "README: None", "ADR: None" and "SPEC: None" when no doc exists', () => {
       // 空のディレクトリ状態で実行
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
       expect(res.stdout).toContain('README: None');
       expect(res.stdout).toContain('ADR: None');
       expect(res.stdout).toContain('SPEC: None');
@@ -80,7 +80,7 @@ describe('Shell Scripts Unit Tests', () => {
 `;
       fs.writeFileSync(path.join(tmpDir, 'README.md'), mockReadme);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== README_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
@@ -98,7 +98,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.mkdirSync(path.join(tmpDir, 'docs/nested'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'docs/nested/README.MD'), '# Nested Readme\n\n## Overview\n本文\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== README_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
@@ -118,7 +118,7 @@ describe('Shell Scripts Unit Tests', () => {
         '# 0002 Use gRPC\n\n本文\n'
       );
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== ADR_PATHS ===');
       expect(res.stdout).toContain('Found 2 file(s)');
@@ -134,7 +134,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.mkdirSync(path.join(tmpDir, 'docs/ADRs'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'docs/ADRs/0001-decision.md'), '# Plural ADR Dir\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== ADR_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
@@ -147,7 +147,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.writeFileSync(path.join(tmpDir, 'adr.md'), '# Root ADR File\n');
       fs.writeFileSync(path.join(tmpDir, 'some/deep/path/ADRS.md'), '# Nested Plural ADR File\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== ADR_PATHS ===');
       expect(res.stdout).toContain('Found 2 file(s)');
@@ -161,7 +161,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.mkdirSync(path.join(tmpDir, 'spec'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'spec/auth.md'), '# User Auth Spec\n\n## Endpoints\n本文\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== SPEC_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
@@ -174,7 +174,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.mkdirSync(path.join(tmpDir, 'foo/Specs'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'foo/Specs/thing.md'), '# Plural Spec Dir\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== SPEC_PATHS ===');
       expect(res.stdout).toContain('Found 1 file(s)');
@@ -187,7 +187,7 @@ describe('Shell Scripts Unit Tests', () => {
       fs.writeFileSync(path.join(tmpDir, 'spec.md'), '# Root Spec File\n');
       fs.writeFileSync(path.join(tmpDir, 'some/deep/path/SPECS.md'), '# Nested Plural Spec File\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('=== SPEC_PATHS ===');
       expect(res.stdout).toContain('Found 2 file(s)');
@@ -205,7 +205,7 @@ describe('Shell Scripts Unit Tests', () => {
       );
       fs.writeFileSync(path.join(tmpDir, 'node_modules/README.md'), '# Should Also Be Ignored\n');
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('README: None');
       expect(res.stdout).toContain('ADR: None');
@@ -219,7 +219,7 @@ describe('Shell Scripts Unit Tests', () => {
         fs.writeFileSync(path.join(tmpDir, `docs/adr/${n}-decision.md`), `# ${n} Decision\n`);
       }
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       expect(res.stdout).toContain('Found 25 file(s)');
       expect(res.stdout).toContain('... (and 5 more, truncated)');
@@ -229,7 +229,7 @@ describe('Shell Scripts Unit Tests', () => {
       const headings = Array.from({ length: 18 }, (_, i) => `## Heading ${i + 1}`).join('\n\n');
       fs.writeFileSync(path.join(tmpDir, 'README.md'), `# Title\n\n${headings}\n`);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh');
 
       // 上限15件には先頭の "# Title" 自身も含まれるため、Heading 14 までが表示される
       expect(res.stdout).toContain('  - Heading 14');
