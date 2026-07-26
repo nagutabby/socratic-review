@@ -444,4 +444,133 @@ exit 1
       expect(recordedArgs).toContain('issue view 42');
     });
   });
+
+  // -------------------------------------------------------------
+  // 6. commit.sh のテスト
+  // -------------------------------------------------------------
+  describe('commit.sh', () => {
+    beforeEach(() => {
+      // tmpDir を Git リポジトリとして初期化してダミーコミット（デフォルトブランチは main）
+      execSync(
+        'git init -b main && git config user.name "Test" && git config user.email "test@example.com"',
+        { cwd: tmpDir }
+      );
+      fs.writeFileSync(path.join(tmpDir, 'dummy.txt'), 'initial');
+      execSync('git add . && git commit -m "initial"', { cwd: tmpDir });
+    });
+
+    it('should fail with exit code 1 when no commit message is given', () => {
+      const res = runScript('.claude/skills/socratic-review/scripts/commit.sh');
+      expect(res.exitCode).toBe(1);
+    });
+
+    it.each(['main', 'master', 'develop'])(
+      'should refuse to commit on the protected branch "%s"',
+      (branch) => {
+        if (branch !== 'main') {
+          execSync(`git checkout -b ${branch}`, { cwd: tmpDir });
+        }
+        fs.writeFileSync(path.join(tmpDir, 'change.txt'), 'changed');
+
+        const res = runScript('.claude/skills/socratic-review/scripts/commit.sh', ['some change']);
+
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+        expect(res.stdout).toContain(branch);
+      }
+    );
+
+    it('should commit all working tree changes on a non-protected branch', () => {
+      execSync('git checkout -b feature/foo', { cwd: tmpDir });
+      fs.writeFileSync(path.join(tmpDir, 'change.txt'), 'changed');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/commit.sh', ['add change.txt']);
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('COMMITTED: feature/foo - add change.txt');
+
+      const status = execSync('git status --porcelain', { cwd: tmpDir, encoding: 'utf-8' });
+      expect(status.trim()).toBe('');
+      const log = execSync('git log --oneline -1', { cwd: tmpDir, encoding: 'utf-8' });
+      expect(log).toContain('add change.txt');
+    });
+
+    it('should report NO_CHANGES and exit 0 when there is nothing to commit', () => {
+      execSync('git checkout -b feature/foo', { cwd: tmpDir });
+
+      const res = runScript('.claude/skills/socratic-review/scripts/commit.sh', ['nothing to see']);
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('NO_CHANGES: commit対象の変更がありません');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 7. push.sh のテスト
+  // -------------------------------------------------------------
+  describe('push.sh', () => {
+    let bareDir: string;
+
+    beforeEach(() => {
+      // origin として使うベアリポジトリを別ディレクトリに作成する
+      bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'socratic-script-test-bare-'));
+      execSync(`git init -q --bare "${bareDir}"`, { cwd: tmpDir });
+
+      execSync(
+        'git init -b main && git config user.name "Test" && git config user.email "test@example.com"',
+        { cwd: tmpDir }
+      );
+      execSync(`git remote add origin "${bareDir}"`, { cwd: tmpDir });
+      fs.writeFileSync(path.join(tmpDir, 'dummy.txt'), 'initial');
+      execSync('git add . && git commit -m "initial"', { cwd: tmpDir });
+    });
+
+    afterEach(() => {
+      fs.rmSync(bareDir, { recursive: true, force: true });
+    });
+
+    it.each(['main', 'master', 'develop'])(
+      'should refuse to push the protected branch "%s"',
+      (branch) => {
+        if (branch !== 'main') {
+          execSync(`git checkout -b ${branch}`, { cwd: tmpDir });
+        }
+
+        const res = runScript('.claude/skills/socratic-review/scripts/push.sh');
+
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+        expect(res.stdout).toContain(branch);
+
+        const remoteRefs = execSync(`git ls-remote "${bareDir}"`, { encoding: 'utf-8' });
+        expect(remoteRefs.trim()).toBe('');
+      }
+    );
+
+    it('should push the current working branch to origin when no target is given', () => {
+      execSync('git checkout -b feature/foo', { cwd: tmpDir });
+
+      const res = runScript('.claude/skills/socratic-review/scripts/push.sh');
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('PUSHED: origin/feature/foo');
+
+      const remoteRefs = execSync(`git ls-remote "${bareDir}"`, { encoding: 'utf-8' });
+      expect(remoteRefs).toContain('refs/heads/feature/foo');
+    });
+
+    it('should refuse to push when the given target branch differs from the current working branch', () => {
+      execSync('git checkout -b feature/foo', { cwd: tmpDir });
+
+      const res = runScript('.claude/skills/socratic-review/scripts/push.sh', ['other-branch']);
+
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+      expect(res.stdout).toContain('feature/foo');
+      expect(res.stdout).toContain('other-branch');
+
+      const remoteRefs = execSync(`git ls-remote "${bareDir}"`, { encoding: 'utf-8' });
+      expect(remoteRefs.trim()).toBe('');
+    });
+  });
 });
