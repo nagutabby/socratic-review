@@ -35,7 +35,7 @@
 まずは本リポジトリをローカルの任意の場所（例: `~/socratic-review`）にクローンします。
 
 ```bash
-git clone https://github.com/your-username/socratic-review.git ~/socratic-review
+git clone git@github.com:nagutabby/socratic-review.git ~/socratic-review
 ```
 
 ### 2. スキルディレクトリのシンボリックリンク作成
