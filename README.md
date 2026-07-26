@@ -23,8 +23,9 @@
   - `--non-interactive`: TTYなし/CI環境モード。問答を待たず専門家の推論のみで自己完結し報告
 - **📝 「意図通り」と判断した問いを意図のみコードにインラインコメントとして記録**
   - C（意図通り）を選択するたびに、専門家が指摘した該当ファイル・行の直前へ設計判断の意図のみを即座に追記。
-- **✅ PRコメント更新前の確認**
-  - すべての問いが完了した後、PRコメントを投稿・更新するかどうかをユーザーに確認してから実行。
+- **✅ commit・push前の確認と保護ブランチガード**
+  - すべての問いが完了した後、セッション中の修正内容を要約したコミットメッセージでcommit・pushするかどうかをユーザーに確認してから実行。
+  - `main`・`master`・`develop` 上でのcommit、および現在の作業ブランチ以外へのpushは自動的に拒否される。
 
 ---
 
@@ -48,7 +49,7 @@ ln -s ~/socratic-review/.claude/skills/socratic-review ~/.claude/skills/socratic
 ```
 
 ### 3. GitHub CLI (`gh`) のインストールと認証
-本スキルは Issue・Pull Request・リポジトリ内ファイルの取得、および PR へのコメント投稿に [GitHub CLI](https://cli.github.com/) (`gh` コマンド) を使用します。未インストールの場合は先にインストールしてください。
+本スキルは Issue・Pull Request・リポジトリ内ファイルの取得に [GitHub CLI](https://cli.github.com/) (`gh` コマンド) を使用します。未インストールの場合は先にインストールしてください。
 
 ```bash
 # macOS の例
@@ -80,12 +81,14 @@ gh auth status
   - `arch-expert.md`
   - `ops-expert.md`
   - `ui-ux-expert.md`
-- **`scripts/`**: 差分取得・コメント記録用シェルスクリプト
+- **`scripts/`**: 差分取得・コメント記録・commit/push用シェルスクリプト
   - `get-doc-paths.sh`: README・ADR・Spec/設計ドキュメントのファイルパスと見出しアウトラインの取得
   - `fetch-diff.sh`: diff の取得とタグ自動分類
   - `fetch-pull-request.sh`: `gh` コマンド経由で現在ブランチに紐づく PR を取得
   - `fetch-issue.sh`: `gh` コマンド経由で明示指定された Issue URL/番号から Issue を取得
   - `append-comment.sh`: C（意図通り）を選択した問いについて、設計判断の意図のみを該当ファイルの該当行にインラインコメントとして追記
+  - `commit.sh`: 修正内容を要約したコミットメッセージで現在の作業ブランチにcommit（`main`・`master`・`develop` 上での実行は拒否）
+  - `push.sh`: 現在の作業ブランチに対応するリモートブランチへpush（保護ブランチへのpush、および現在の作業ブランチ以外へのpushは拒否）
 
 ---
 
