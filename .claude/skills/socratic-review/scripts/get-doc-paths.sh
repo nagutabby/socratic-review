@@ -4,19 +4,8 @@ set -e
 print_doc_paths() {
   local label="$1"
   shift
-  local paths=("$@")
-  local files=()
-  local f p
-
-  for p in "${paths[@]}"; do
-    if [ -d "$p" ]; then
-      while IFS= read -r f; do
-        files+=("$f")
-      done < <(find "$p" -type f \( -iname "*.md" -o -iname "*.adoc" -o -iname "*.rst" \) 2>/dev/null | sort)
-    elif [ -f "$p" ]; then
-      files+=("$p")
-    fi
-  done
+  local files=("$@")
+  local f
 
   if [ ${#files[@]} -eq 0 ]; then
     echo "${label}: None"
@@ -46,24 +35,47 @@ print_doc_paths() {
   done
 }
 
-find_first_existing() {
-  local f
-  for f in "$@"; do
-    if [ -f "$f" ]; then
-      echo "$f"
-      return 0
-    fi
-  done
-  return 1
+# node_modules と .git を除外しつつプロジェクトルート配下を再帰的に辿るための共通の prune 条件
+PRUNE_ARGS=( "(" -path "./node_modules" -o -path "./.git" ")" -prune -o )
+
+# ファイル名（大文字小文字を区別しない）に完全一致するファイルをルートから再帰的に検索する
+find_files_by_name() {
+  local pattern="$1"
+  find . "${PRUNE_ARGS[@]}" -type f -iname "$pattern" -print 2>/dev/null | sed 's|^\./||'
 }
 
-README_FILE=$(find_first_existing README.md README.ja.md Readme.md || true)
-if [ -n "$README_FILE" ]; then
-  print_doc_paths "README" "$README_FILE"
-else
-  echo "README: None"
-fi
+# ディレクトリ名（大文字小文字を区別しない）に完全一致するディレクトリ配下の
+# md/adoc/rst ファイルをルートから再帰的に検索する
+find_files_under_dirs_named() {
+  local pattern="$1" dir
+  find . "${PRUNE_ARGS[@]}" -type d -iname "$pattern" -print 2>/dev/null | while IFS= read -r dir; do
+    find "$dir" -type f \( -iname "*.md" -o -iname "*.adoc" -o -iname "*.rst" \) 2>/dev/null
+  done | sed 's|^\./||'
+}
+
+mapfile -t readme_files < <(find_files_by_name "README.md" | sort -u)
+print_doc_paths "README" "${readme_files[@]}"
+
 echo ""
-print_doc_paths "ADR" docs/adr docs/adrs doc/adr adr adrs docs/decisions decisions ADR.md
+
+mapfile -t adr_files < <(
+  {
+    find_files_under_dirs_named "adr"
+    find_files_under_dirs_named "adrs"
+    find_files_by_name "adr.md"
+    find_files_by_name "adrs.md"
+  } | sort -u
+)
+print_doc_paths "ADR" "${adr_files[@]}"
+
 echo ""
-print_doc_paths "SPEC" docs/spec docs/specs spec specs SPEC.md Spec.md docs/SPEC.md DESIGN.md docs/design docs/DESIGN.md
+
+mapfile -t spec_files < <(
+  {
+    find_files_under_dirs_named "spec"
+    find_files_under_dirs_named "specs"
+    find_files_by_name "spec.md"
+    find_files_by_name "specs.md"
+  } | sort -u
+)
+print_doc_paths "SPEC" "${spec_files[@]}"

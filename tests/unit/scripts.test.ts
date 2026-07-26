@@ -94,6 +94,19 @@ describe('Shell Scripts Unit Tests', () => {
       expect(res.stdout).not.toContain('コンポーネントの説明');
     });
 
+    it('should detect README.md recursively under a nested directory regardless of filename case', () => {
+      fs.mkdirSync(path.join(tmpDir, 'docs/nested'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'docs/nested/README.MD'), '# Nested Readme\n\n## Overview\n本文\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('=== README_PATHS ===');
+      expect(res.stdout).toContain('Found 1 file(s)');
+      expect(res.stdout).toContain('- docs/nested/README.MD');
+      expect(res.stdout).toContain('  - Nested Readme');
+      expect(res.stdout).toContain('  - Overview');
+    });
+
     it('should detect ADR files under docs/adr and list them with their heading outline', () => {
       fs.mkdirSync(path.join(tmpDir, 'docs/adr'), { recursive: true });
       fs.writeFileSync(
@@ -117,6 +130,33 @@ describe('Shell Scripts Unit Tests', () => {
       expect(res.stdout).toContain('  - 0002 Use gRPC');
     });
 
+    it('should detect ADR files under a case-insensitively/plural-matched directory (e.g. "ADRs")', () => {
+      fs.mkdirSync(path.join(tmpDir, 'docs/ADRs'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'docs/ADRs/0001-decision.md'), '# Plural ADR Dir\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('=== ADR_PATHS ===');
+      expect(res.stdout).toContain('Found 1 file(s)');
+      expect(res.stdout).toContain('- docs/ADRs/0001-decision.md');
+      expect(res.stdout).toContain('  - Plural ADR Dir');
+    });
+
+    it('should detect standalone adr.md / adrs.md files at any case and depth', () => {
+      fs.mkdirSync(path.join(tmpDir, 'some/deep/path'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'adr.md'), '# Root ADR File\n');
+      fs.writeFileSync(path.join(tmpDir, 'some/deep/path/ADRS.md'), '# Nested Plural ADR File\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('=== ADR_PATHS ===');
+      expect(res.stdout).toContain('Found 2 file(s)');
+      expect(res.stdout).toContain('- adr.md');
+      expect(res.stdout).toContain('  - Root ADR File');
+      expect(res.stdout).toContain('- some/deep/path/ADRS.md');
+      expect(res.stdout).toContain('  - Nested Plural ADR File');
+    });
+
     it('should detect Spec files under a spec/ directory and list them with their heading outline', () => {
       fs.mkdirSync(path.join(tmpDir, 'spec'), { recursive: true });
       fs.writeFileSync(path.join(tmpDir, 'spec/auth.md'), '# User Auth Spec\n\n## Endpoints\n本文\n');
@@ -128,6 +168,48 @@ describe('Shell Scripts Unit Tests', () => {
       expect(res.stdout).toContain('- spec/auth.md');
       expect(res.stdout).toContain('  - User Auth Spec');
       expect(res.stdout).toContain('  - Endpoints');
+    });
+
+    it('should detect Spec files under a case-insensitively/plural-matched directory (e.g. "Specs")', () => {
+      fs.mkdirSync(path.join(tmpDir, 'foo/Specs'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'foo/Specs/thing.md'), '# Plural Spec Dir\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('=== SPEC_PATHS ===');
+      expect(res.stdout).toContain('Found 1 file(s)');
+      expect(res.stdout).toContain('- foo/Specs/thing.md');
+      expect(res.stdout).toContain('  - Plural Spec Dir');
+    });
+
+    it('should detect standalone spec.md / specs.md files at any case and depth', () => {
+      fs.mkdirSync(path.join(tmpDir, 'some/deep/path'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'spec.md'), '# Root Spec File\n');
+      fs.writeFileSync(path.join(tmpDir, 'some/deep/path/SPECS.md'), '# Nested Plural Spec File\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('=== SPEC_PATHS ===');
+      expect(res.stdout).toContain('Found 2 file(s)');
+      expect(res.stdout).toContain('- spec.md');
+      expect(res.stdout).toContain('  - Root Spec File');
+      expect(res.stdout).toContain('- some/deep/path/SPECS.md');
+      expect(res.stdout).toContain('  - Nested Plural Spec File');
+    });
+
+    it('should exclude node_modules and .git directories from README/ADR/SPEC search', () => {
+      fs.mkdirSync(path.join(tmpDir, 'node_modules/some-package/adr'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, 'node_modules/some-package/adr/0001-decision.md'),
+        '# Should Be Ignored\n'
+      );
+      fs.writeFileSync(path.join(tmpDir, 'node_modules/README.md'), '# Should Also Be Ignored\n');
+
+      const res = runScript('.claude/skills/socratic-review/scripts/get-doc-paths.sh');
+
+      expect(res.stdout).toContain('README: None');
+      expect(res.stdout).toContain('ADR: None');
+      expect(res.stdout).toContain('SPEC: None');
     });
 
     it('should truncate the ADR listing beyond 20 files', () => {
