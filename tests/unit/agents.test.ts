@@ -7,10 +7,29 @@ const ai = new GoogleGenAI({});
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
 // .md から Frontmatter を除外してシステムプロンプトを読み込む関数
+//
+// 本番実行時、エージェントは Read ツールを使って `rules/*.md` の共通ルールを
+// 自ら読み込む前提だが、このテストは Gemini API を直接呼び出すだけでツール実行を
+// 伴わないため、エージェント本文が参照している rules/*.md があれば
+// ここで代わりに読み込んでシステムプロンプトへ展開し、本番の挙動を再現する。
 function loadSystemPrompt(agentFileName: string): string {
   const fullPath = path.resolve(`.claude/skills/socratic-review/agents/${agentFileName}`);
-  const content = fs.readFileSync(fullPath, 'utf-8');
-  return content.replace(/^---[\s\S]*?---\n/, '').trim();
+  const content = fs.readFileSync(fullPath, 'utf-8').replace(/^---[\s\S]*?---\n/, '').trim();
+
+  const rulesDir = path.resolve('.claude/skills/socratic-review/rules');
+  const referencedRuleFiles = [...content.matchAll(/rules\/([\w-]+\.md)/g)]
+    .map((m) => m[1])
+    .filter((name): name is string => name !== undefined);
+
+  let expandedPrompt = content;
+  for (const ruleFileName of new Set(referencedRuleFiles)) {
+    const rulePath = path.join(rulesDir, ruleFileName);
+    if (fs.existsSync(rulePath)) {
+      const ruleContent = fs.readFileSync(rulePath, 'utf-8').trim();
+      expandedPrompt += `\n\n---\n(rules/${ruleFileName} の内容)\n${ruleContent}`;
+    }
+  }
+  return expandedPrompt;
 }
 
 // 汎用エージェント実行関数
@@ -76,7 +95,7 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // -------------------------------------------------------------
   describe('qa-expert', () => {
     it('should ask probing questions for missing boundary/exception handling', async () => {
-      const mockPrompt = 'この関数は配列が空の場合を考慮しておらず、例外処理も行っていません。';
+      const mockPrompt = '対象ファイル: src/utils/array.ts\nこの関数は配列が空の場合を考慮しておらず、例外処理も行っていません。';
       const output = await runSubAgent('qa-expert.md', mockPrompt);
 
       expect(output).toContain('🔍');
