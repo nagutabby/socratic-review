@@ -401,15 +401,25 @@ describe('Shell Scripts Unit Tests', () => {
   // 4. fetch-pull-request.sh のテスト（gh コマンドをスタブして検証）
   // -------------------------------------------------------------
   describe('fetch-pull-request.sh', () => {
-    it('should report PR: None when no PR exists for the branch', () => {
-      const env = stubGh('exit 1');
+    it('should exit with an error when no PR reference is given', () => {
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', []);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', [], env);
-
-      expect(res.stdout).toContain('PR: None');
+      expect(res.exitCode).not.toBe(0);
     });
 
-    it('should print PR number, title, url and changed files', () => {
+    it('should report PR: NOT_FOUND when the given PR cannot be fetched', () => {
+      const env = stubGh('exit 1');
+
+      const res = runScript(
+        '.claude/skills/socratic-review/scripts/fetch-pull-request.sh',
+        ['https://github.com/example/example/pull/7'],
+        env
+      );
+
+      expect(res.stdout).toContain('PR: NOT_FOUND');
+    });
+
+    it('should fetch the PR directly when a PR URL is passed explicitly, printing number, title, url and changed files', () => {
       const env = stubGh(`
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
   echo '{"number":7,"title":"Fix bug","body":"Closes #42","url":"https://github.com/example/example/pull/7","files":[{"path":"src/a.ts"},{"path":"src/b.ts"}]}'
@@ -418,12 +428,34 @@ fi
 exit 1
 `);
 
-      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', [], env);
+      const res = runScript(
+        '.claude/skills/socratic-review/scripts/fetch-pull-request.sh',
+        ['https://github.com/example/example/pull/7'],
+        env
+      );
 
       expect(res.stdout).toContain('PR #7: Fix bug');
       expect(res.stdout).toContain('URL: https://github.com/example/example/pull/7');
       expect(res.stdout).toContain('- src/a.ts');
       expect(res.stdout).toContain('- src/b.ts');
+    });
+
+    it('should strip a leading "#" when a PR number is passed', () => {
+      const argsFile = path.join(tmpDir, 'gh-args.txt');
+      const env = stubGh(`
+echo "$@" >> "${argsFile}"
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo '{"number":7,"title":"Fix bug","body":"body","url":"https://github.com/example/example/pull/7","files":[]}'
+  exit 0
+fi
+exit 1
+`);
+
+      const res = runScript('.claude/skills/socratic-review/scripts/fetch-pull-request.sh', ['#7'], env);
+
+      expect(res.stdout).toContain('PR #7: Fix bug');
+      const recordedArgs = fs.readFileSync(argsFile, 'utf-8');
+      expect(recordedArgs).toContain('pr view 7');
     });
   });
 

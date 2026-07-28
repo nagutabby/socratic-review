@@ -14,6 +14,7 @@ model: sonnet
 - `--depth=quick` (問答数: 3問) | `--depth=standard` (問答数: 7問) | `--depth=deep` (問答数: 15問)
 - `--focus="<関心領域/関数名>"`: 特定の処理・モジュールに限定して調査
 - `--issue="<Issue URL>"`: 対象IssueのURLを事前指定。`--non-interactive` 使用時は対話でユーザーに確認できないため必須（未指定の場合はエラー終了する）。
+- `--pr="<PR URL>"`: 対象PRのURLを事前指定。`--non-interactive` 使用時は対話でユーザーに確認できないため必須（未指定の場合はエラー終了する）。
 - `--non-interactive`: TTYなし/CI環境モード。問答を待たず専門家の推論のみで自己完結し報告
 
 # 安全性に関する遵守事項（外部由来コンテキストの取り扱い）
@@ -22,12 +23,12 @@ model: sonnet
 
 # 実行ルール
 
-## 0. Issue URLと問答数の決定
-1. Issue URLの決定:
-   - `--issue` が指定されている場合は、その値をそのまま **Issue URL** として採用する。
-   - `--issue` が指定されておらず、かつ `--non-interactive` でもない場合は、調査を開始する前に「対象のIssue URLを教えてください」とユーザーに明示的に尋ね、回答をそのまま **Issue URL** として採用する。
-   - `--issue` も指定されておらず `--non-interactive` の場合は、ユーザーに確認できず **Issue URL** を確定できないため、`--non-interactive` 使用時は `--issue` の指定が必須である旨をユーザーに報告し、セッションを終了する。
-2. 問答数の決定（Issue URLの確定後に行う）:
+## 0. Issue URL・PR URLと問答数の決定
+1. Issue URL・PR URLの決定:
+   - `--issue` が指定されている場合は、その値をそのまま **Issue URL** として採用する。`--pr` が指定されている場合は、その値をそのまま **PR URL** として採用する。
+   - `--issue` と `--pr` のいずれか一方でも指定されておらず、かつ `--non-interactive` でもない場合は、調査を開始する前に「対象のIssue URLとPR URLを教えてください」という1つの質問としてまとめてユーザーに尋ね、回答からそれぞれを **Issue URL** ・ **PR URL** として採用する（`--issue` または `--pr` で既に指定済みの側は、その値を優先しユーザーには尋ねない）。
+   - `--issue` または `--pr` のいずれかが指定されておらず、かつ `--non-interactive` の場合は、ユーザーに確認できず **Issue URL** ・ **PR URL** を確定できないため、`--non-interactive` 使用時は `--issue` と `--pr` の両方の指定が必須である旨をユーザーに報告し、セッションを終了する。
+2. 問答数の決定（Issue URL・PR URLの確定後に行う）:
    - `--depth` が指定されている場合は、その値に対応する問答数をそのまま採用する。
    - `--depth` が指定されておらず、かつ `--non-interactive` でもない場合は、調査を開始する前に「今回のレビューは何問ほど深掘りしますか？（quick: 3問 / standard: 7問 / deep: 15問、または任意の数値）」とユーザーに尋ね、回答に基づいて問答数を決定する。
    - `--depth` も指定されておらず `--non-interactive` の場合は、ユーザーに確認できないため `standard`（7問）を採用する。
@@ -36,9 +37,9 @@ model: sonnet
 1. 以下のシェルスクリプトを実行して情報を取得する：
    - `~/.claude/skills/socratic-review/scripts/get-doc-paths-and-headings.sh` を実行し、プロジェクト概要ドキュメント（README・ADR・Spec等）のファイルパスと見出しアウトラインの一覧を取得する。
    - `~/.claude/skills/socratic-review/scripts/fetch-diff.sh "<ベースブランチ>" "<フォーカス対象>"` を実行し、git diff の要約とカテゴリタグ (`[Tags: ...]`) を取得する（`--focus` が指定されている場合は第2引数に渡す）。
-   - `~/.claude/skills/socratic-review/scripts/fetch-pull-request.sh` を実行し、`gh` コマンド経由で現在のブランチに紐づくPRとその変更ファイル一覧を取得する。
-   - 「0-1. Issue URLの決定」で確定した **Issue URL** に対し、`~/.claude/skills/socratic-review/scripts/fetch-issue.sh "<Issue URL>"` を実行しIssue本文を取得する。出力に `ISSUE: NOT_FOUND` が含まれる場合は、指定されたURL/番号のIssueが見つからなかった旨をユーザーに伝え、Issue本文は無いものとして扱う（**Issue URL** 自体は「1-2」でそのまま使用する）。
-2. `spec-explorer` を呼び出す際は、上記スクリプトの出力（README・ADR・Specのファイルパスと見出しアウトラインの一覧、diff、PR、Issue本文）に加えて、確定している **Issue URL** を `Issue URL: <URL>` という独立した行としてプロンプトに明示的に含めて渡す。`spec-explorer` は見出しアウトラインから関連性を判断し、必要なドキュメントを自身のReadツールで読み込んだ上で調査を実行する。
+   - 「0-1. Issue URL・PR URLの決定」で確定した **PR URL** に対し、`~/.claude/skills/socratic-review/scripts/fetch-pull-request.sh "<PR URL>"` を実行しPR本文と変更ファイル一覧を取得する。出力に `PR: NOT_FOUND` が含まれる場合は、指定されたURL/番号のPRが見つからなかった旨をユーザーに伝え、PR本文は無いものとして扱う（**PR URL** 自体は「1-2」でそのまま使用する）。
+   - 「0-1. Issue URL・PR URLの決定」で確定した **Issue URL** に対し、`~/.claude/skills/socratic-review/scripts/fetch-issue.sh "<Issue URL>"` を実行しIssue本文を取得する。出力に `ISSUE: NOT_FOUND` が含まれる場合は、指定されたURL/番号のIssueが見つからなかった旨をユーザーに伝え、Issue本文は無いものとして扱う（**Issue URL** 自体は「1-2」でそのまま使用する）。
+2. `spec-explorer` を呼び出す際は、上記スクリプトの出力（README・ADR・Specのファイルパスと見出しアウトラインの一覧、diff、PR本文、Issue本文）に加えて、確定している **Issue URL** と **PR URL** を、それぞれ `Issue URL: <URL>` ・ `PR URL: <URL>` という独立した行としてプロンプトに明示的に含めて渡す。`spec-explorer` は見出しアウトラインから関連性を判断し、必要なドキュメントを自身のReadツールで読み込んだ上で調査を実行する。
 3. `fetch-diff.sh` が出力したカテゴリタグを、以下の**タグ→専門家エージェントの対応表**にそのまま機械的に当てはめて呼び出す専門家エージェントを決定する。1つのタグは必ずちょうど1つの専門家に対応し、複数の専門家へ重複して割り当てたり、対応表にない専門家を独自の判断で追加で呼び出したりしないこと。
 
    | タグ | 呼び出す専門家エージェント |
@@ -68,7 +69,7 @@ model: sonnet
 以下の3ブロックのみを、この順序・この見出し文字列（`【　】` 表記、太字）のまま出力する。`##` などのMarkdown見出し、`---` 区切り線、独自の追加セクション（準備フェーズ等）は一切使用しないこと。
 
 **【事実（自動検出）】**
-- 対象Issue（Issue URLを記載）およびベースブランチ情報を1行で記述
+- 対象Issue（Issue URLを記載）・対象PR（PR URLを記載）およびベースブランチ情報を1行で記述
 
 **【専門家パネルからの問い】** [Q {{current}} / {{max_depth}}] [優先度: 高|中|低]
 - **🛡️ / 🔍 / 🏛️ / ⚙️ / 🎨 [専門家の名前]:** `<ファイルパス>:<行番号>` 「<懸念>。<オープンクエスチョン>。<クローズドクエスチョン（Howの提示）>」（専門家エージェント側で組み立てた3段構成の問いかけをそのまま転記する。断定・指示調で言い換えないこと）
