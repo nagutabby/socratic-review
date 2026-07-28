@@ -4,10 +4,23 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
+// macOS はデフォルトの /bin/bash が 3.2 系（mapfile 等の bash4+ 機能未対応）のため、
+// 利用可能であれば Homebrew 版などの新しい bash を優先的に使う
+function resolveBashBinary(): string {
+  const candidates = ['/opt/homebrew/bin/bash', '/usr/local/bin/bash'];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return 'bash';
+}
+
 describe('Shell Scripts Unit Tests', () => {
   let tmpDir: string;
   // プロジェクトルート（.claude の親ディレクトリ）を動的に探す
   const projectRoot = path.resolve(__dirname, '../../');
+  const bashBin = resolveBashBinary();
 
   beforeEach(() => {
     // 各テストで隔離された一時ディレクトリを作成
@@ -29,7 +42,7 @@ describe('Shell Scripts Unit Tests', () => {
     }
 
     try {
-      const stdout = execSync(`bash "${scriptPath}" ${args.map((a) => `"${a}"`).join(' ')}`, {
+      const stdout = execSync(`"${bashBin}" "${scriptPath}" ${args.map((a) => `"${a}"`).join(' ')}`, {
         cwd: tmpDir,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'ignore'],

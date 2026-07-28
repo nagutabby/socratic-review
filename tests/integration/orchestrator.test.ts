@@ -132,7 +132,7 @@ describe('Category Tag -> Expert Dispatch (SKILL.md Tag Table)', () => {
     'should dispatch only the expert mapped to the $tag tag',
     async ({ tag, expertIcon, expertName, file, diffBody }) => {
       const userPromptMock = `
-/socratic-review --depth=quick --issue="https://github.com/example/example/issues/1"
+/socratic-review --depth=quick --issue="https://github.com/example/example/issues/1" --pr="https://github.com/example/example/pull/2"
 
 [モック環境情報]:
 - カレントブランチ: feature/mock
