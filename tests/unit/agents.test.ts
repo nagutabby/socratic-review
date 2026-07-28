@@ -48,13 +48,24 @@ async function runSubAgent(agentFileName: string, userPromptMock: string): Promi
   return response.text || '';
 }
 
+// エージェントの出力（構造化出力のJSONオブジェクト1つのみのはず）から
+// JSONオブジェクトを抜き出してパースする。コードフェンス等が付与されていても許容する。
+function extractJson(output: string): any {
+  const withoutFences = output.replace(/```json/gi, '').replace(/```/g, '');
+  const match = withoutFences.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error(`出力からJSONオブジェクトを抽出できませんでした: ${output}`);
+  }
+  return JSON.parse(match[0]);
+}
+
 describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
 
   // -------------------------------------------------------------
   // 1. spec-explorer.md のテスト
   // -------------------------------------------------------------
   describe('spec-explorer', () => {
-    it('should correctly parse diff and extract relevant tags', async () => {
+    it('should correctly parse diff and extract relevant tags as structured JSON', async () => {
       const mockPrompt = `
 以下の diff からタグと概要を抽出してください。
 [diff]:
@@ -63,9 +74,15 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
 + db.query(query);
 `;
       const output = await runSubAgent('spec-explorer.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('[Tags:');
-      expect(output).toMatch(/(Security|DB)/i);
+      expect(Array.isArray(parsed.tags)).toBe(true);
+      expect(parsed.tags.length).toBeGreaterThan(0);
+      expect(parsed.tags.some((tag: string) => /security|arch/i.test(tag))).toBe(true);
+      expect(Array.isArray(parsed.files)).toBe(true);
+      expect(parsed.files.length).toBeGreaterThan(0);
+      expect(parsed.files[0].file_path).toBeTruthy();
+      expect(parsed.files[0].summary).toBeTruthy();
     });
   });
 
@@ -73,20 +90,25 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // 2. sec-expert.md のテスト
   // -------------------------------------------------------------
   describe('sec-expert', () => {
-    it('should ask probing questions for SQL injection risks', async () => {
+    it('should return a structured "finding" JSON with probing questions for SQL injection risks', async () => {
       const mockPrompt = 'SQLクエリの生成において、ユーザー入力文字列を直接結合しています。';
       const output = await runSubAgent('sec-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('🛡️');
-      expect(output).toMatch(/[？\?]/);
-      expect(output).not.toContain('指摘なし');
+      expect(parsed.status).toBe('finding');
+      expect(parsed.expert_icon).toBe('🛡️');
+      expect(parsed.expert_name).toBe('セキュリティ専門家');
+      expect(['高', '中', '低']).toContain(parsed.priority);
+      expect(parsed.open_question).toMatch(/[？\?]/);
+      expect(parsed.closed_question).toMatch(/[？\?]/);
     });
 
-    it('should return "指摘なし" for non-security changes', async () => {
+    it('should return status "no_finding" for non-security changes', async () => {
       const mockPrompt = 'ボタンのテキスト色を青から緑に変更しました。';
       const output = await runSubAgent('sec-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('指摘なし');
+      expect(parsed.status).toBe('no_finding');
     });
   });
 
@@ -94,20 +116,25 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // 2b. qa-expert.md のテスト
   // -------------------------------------------------------------
   describe('qa-expert', () => {
-    it('should ask probing questions for missing boundary/exception handling', async () => {
+    it('should return a structured "finding" JSON with probing questions for missing boundary/exception handling', async () => {
       const mockPrompt = '対象ファイル: src/utils/array.ts\nこの関数は配列が空の場合を考慮しておらず、例外処理も行っていません。';
       const output = await runSubAgent('qa-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('🔍');
-      expect(output).toMatch(/[？\?]/);
-      expect(output).not.toContain('指摘なし');
+      expect(parsed.status).toBe('finding');
+      expect(parsed.expert_icon).toBe('🔍');
+      expect(parsed.expert_name).toBe('QA専門家');
+      expect(['高', '中', '低']).toContain(parsed.priority);
+      expect(parsed.open_question).toMatch(/[？\?]/);
+      expect(parsed.closed_question).toMatch(/[？\?]/);
     });
 
-    it('should return "指摘なし" for non-boundary/exception changes', async () => {
+    it('should return status "no_finding" for non-boundary/exception changes', async () => {
       const mockPrompt = '認証トークンの発行ロジックを変更しました。';
       const output = await runSubAgent('qa-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('指摘なし');
+      expect(parsed.status).toBe('no_finding');
     });
   });
 
@@ -115,20 +142,25 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // 3. arch-expert.md のテスト
   // -------------------------------------------------------------
   describe('arch-expert', () => {
-    it('should ask probing questions for circular or tight coupling designs', async () => {
+    it('should return a structured "finding" JSON with probing questions for circular or tight coupling designs', async () => {
       const mockPrompt = 'UIコンポーネントの中から直接データベース接続ドライバーをインスタンス化してクエリを呼び出しています。';
       const output = await runSubAgent('arch-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('🏛️');
-      expect(output).toMatch(/[？\?]/);
-      expect(output).not.toContain('指摘なし');
+      expect(parsed.status).toBe('finding');
+      expect(parsed.expert_icon).toBe('🏛️');
+      expect(parsed.expert_name).toBe('アーキテクチャ専門家');
+      expect(['高', '中', '低']).toContain(parsed.priority);
+      expect(parsed.open_question).toMatch(/[？\?]/);
+      expect(parsed.closed_question).toMatch(/[？\?]/);
     });
 
-    it('should return "指摘なし" for pure styling changes', async () => {
+    it('should return status "no_finding" for pure styling changes', async () => {
       const mockPrompt = '余白（padding）の調整のみを行いました。';
       const output = await runSubAgent('arch-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('指摘なし');
+      expect(parsed.status).toBe('no_finding');
     });
   });
 
@@ -136,20 +168,25 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // 5. ops-expert.md のテスト
   // -------------------------------------------------------------
   describe('ops-expert', () => {
-    it('should ask probing questions for missing error logging in async catch blocks', async () => {
+    it('should return a structured "finding" JSON with probing questions for missing error logging in async catch blocks', async () => {
       const mockPrompt = '外部API呼び出しの try-catch ブロックで、catch 節でエラーを握りつぶしログ出力を行っていません。';
       const output = await runSubAgent('ops-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('⚙️');
-      expect(output).toMatch(/[？\?]/);
-      expect(output).not.toContain('指摘なし');
+      expect(parsed.status).toBe('finding');
+      expect(parsed.expert_icon).toBe('⚙️');
+      expect(parsed.expert_name).toBe('運用/Ops専門家');
+      expect(['高', '中', '低']).toContain(parsed.priority);
+      expect(parsed.open_question).toMatch(/[？\?]/);
+      expect(parsed.closed_question).toMatch(/[？\?]/);
     });
 
-    it('should return "指摘なし" when ops concerns do not exist', async () => {
+    it('should return status "no_finding" when ops concerns do not exist', async () => {
       const mockPrompt = 'READMEの誤字脱字を修正しました。';
       const output = await runSubAgent('ops-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('指摘なし');
+      expect(parsed.status).toBe('no_finding');
     });
   });
 
@@ -157,20 +194,25 @@ describe('All Sub-Agents Unit Tests (System Prompt Driven)', () => {
   // 6. ui-ux-expert.md のテスト
   // -------------------------------------------------------------
   describe('ui-ux-expert', () => {
-    it('should ask probing questions for missing aria-label or accessible features', async () => {
+    it('should return a structured "finding" JSON with probing questions for missing aria-label or accessible features', async () => {
       const mockPrompt = 'アイコンのみの削除ボタンを追加しましたが、aria-label やテキスト注記がありません。';
       const output = await runSubAgent('ui-ux-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('🎨');
-      expect(output).toMatch(/[？\?]/);
-      expect(output).not.toContain('指摘なし');
+      expect(parsed.status).toBe('finding');
+      expect(parsed.expert_icon).toBe('🎨');
+      expect(parsed.expert_name).toBe('UI/UX専門家');
+      expect(['高', '中', '低']).toContain(parsed.priority);
+      expect(parsed.open_question).toMatch(/[？\?]/);
+      expect(parsed.closed_question).toMatch(/[？\?]/);
     });
 
-    it('should return "指摘なし" for backend/SQL query optimizations', async () => {
+    it('should return status "no_finding" for backend/SQL query optimizations', async () => {
       const mockPrompt = 'DBインデックスを追加してSELECTクエリを高速化しました。';
       const output = await runSubAgent('ui-ux-expert.md', mockPrompt);
+      const parsed = extractJson(output);
 
-      expect(output).toContain('指摘なし');
+      expect(parsed.status).toBe('no_finding');
     });
   });
 

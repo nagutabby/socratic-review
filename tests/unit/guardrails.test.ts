@@ -36,17 +36,45 @@ describe('Sub-agent tool restriction (least privilege)', () => {
     'ui-ux-expert.md',
   ];
 
-  it.each(AGENT_FILES)('%s should restrict tools to read-only (Read, Grep, Glob)', (fileName) => {
+  // Bashは自身の構造化出力(JSON)をvalidate-outputs.shで自己検証するためだけに許可されており、
+  // コード変更が行えるEdit/Write、および他エージェントを起動できるAgentは引き続き禁止する
+  it.each(AGENT_FILES)('%s should restrict tools to read-only + self-validation (Read, Grep, Glob, Bash)', (fileName) => {
     const content = readAgentFile(fileName);
     const frontmatter = parseFrontmatter(content);
 
     expect(frontmatter.tools).toBeDefined();
     const tools = (frontmatter.tools ?? '').split(',').map((t) => t.trim());
-    expect(tools.sort()).toEqual(['Glob', 'Grep', 'Read'].sort());
+    expect(tools.sort()).toEqual(['Bash', 'Glob', 'Grep', 'Read'].sort());
 
-    // Bash/Edit/Write/Agent など、分析専門家に不要な権限が紛れ込んでいないことを確認
-    expect(frontmatter.tools).not.toMatch(/\b(Bash|Edit|Write|Agent|NotebookEdit)\b/);
+    // Edit/Write/Agent など、分析専門家に不要な権限が紛れ込んでいないことを確認
+    expect(frontmatter.tools).not.toMatch(/\b(Edit|Write|Agent|NotebookEdit)\b/);
   });
+
+  const BASH_RESTRICTION_PATTERN = /Bashツールは本検証コマンドの実行以外の目的.*使用してはならない/;
+
+  it.each(AGENT_FILES)('%s should instruct running validate-outputs.sh before returning its response', (fileName) => {
+    const content = readAgentFile(fileName);
+    expect(content).toMatch(/validate-outputs\.sh/);
+  });
+
+  it('spec-explorer.md should inline restrict Bash usage to validate-outputs.sh only (does not reference expert-common.md)', () => {
+    const content = readAgentFile('spec-explorer.md');
+    expect(content).toMatch(BASH_RESTRICTION_PATTERN);
+  });
+
+  it.each(AGENT_FILES.filter((f) => f !== 'spec-explorer.md'))(
+    '%s should reference the shared Bash-usage restriction rule in expert-common.md',
+    (fileName) => {
+      const content = readAgentFile(fileName);
+      expect(content).toMatch(/expert-common\.md/);
+
+      const commonRules = fs.readFileSync(
+        path.join(projectRoot, '.claude/skills/socratic-review/rules/expert-common.md'),
+        'utf-8'
+      );
+      expect(commonRules).toMatch(BASH_RESTRICTION_PATTERN);
+    }
+  );
 });
 
 describe('Project-wide permission deny rules (destructive operation guardrails)', () => {

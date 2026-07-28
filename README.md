@@ -87,6 +87,7 @@ gh auth status
   - `fetch-pull-request.sh`: `gh` コマンド経由で現在ブランチに紐づく PR を取得
   - `fetch-issue.sh`: `gh` コマンド経由で明示指定された Issue URL/番号から Issue を取得
   - `append-comment.sh`: C（意図通り）を選択した問いについて、設計判断の意図のみを該当ファイルの該当行にインラインコメントとして追記
+  - `validate-outputs.sh`: 各専門家サブエージェント/`spec-explorer` がメインエージェントへ返却する構造化出力（JSON）を、返却前に自分自身で構造検証するためのスクリプト
   - `commit.sh`: 修正内容を要約したコミットメッセージで現在の作業ブランチにcommit（`main`・`master`・`develop` 上での実行は拒否）
   - `push.sh`: 現在の作業ブランチに対応するリモートブランチへpush（保護ブランチへのpush、および現在の作業ブランチ以外へのpushは拒否）
 

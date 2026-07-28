@@ -57,6 +57,30 @@ describe('Shell Scripts Unit Tests', () => {
     }
   }
 
+  // ヘルパー関数: 標準入力からJSONなどを渡してスクリプトを実行する（validate-outputs.sh用）
+  function runScriptWithStdin(scriptRelativePath: string, args: string[], input: string): { stdout: string; exitCode: number; } {
+    const scriptPath = path.join(projectRoot, scriptRelativePath);
+
+    if (!fs.existsSync(scriptPath)) {
+      throw new Error(`Target script not found at path: ${scriptPath}`);
+    }
+
+    try {
+      const stdout = execSync(`"${bashBin}" "${scriptPath}" ${args.map((a) => `"${a}"`).join(' ')}`, {
+        cwd: tmpDir,
+        encoding: 'utf-8',
+        input,
+        stdio: ['pipe', 'pipe', 'ignore'],
+      });
+      return { stdout: stdout.trim(), exitCode: 0 };
+    } catch (error: any) {
+      return {
+        stdout: error.stdout ? error.stdout.toString().trim() : '',
+        exitCode: error.status ?? 1,
+      };
+    }
+  }
+
   // ヘルパー関数: 偽の `gh` コマンドを tmpDir 内に作成し、PATH の先頭に追加した実行環境を返す
   // (実際の GitHub API を叩かず、決定的に gh の挙動をスタブするため)
   function stubGh(script: string, extraEnv: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -690,6 +714,167 @@ exit 1
 
       const remoteRefs = execSync(`git ls-remote "${bareDir}"`, { encoding: 'utf-8' });
       expect(remoteRefs.trim()).toBe('');
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 8. validate-outputs.sh のテスト
+  // -------------------------------------------------------------
+  describe('validate-outputs.sh', () => {
+    const SCRIPT = '.claude/skills/socratic-review/scripts/validate-outputs.sh';
+
+    const VALID_FINDING = JSON.stringify({
+      status: 'finding',
+      expert_icon: '🛡️',
+      expert_name: 'セキュリティ専門家',
+      priority: '高',
+      file_path: 'src/auth.ts',
+      line_number: 12,
+      concern: '懸念です。',
+      open_question: 'どう考えていますか？',
+      closed_question: '対応してよいですか？',
+    });
+
+    it('should accept a valid "finding" expert response and print VALID', () => {
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], VALID_FINDING);
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('VALID: expert');
+    });
+
+    it('should accept a valid "no_finding" expert response', () => {
+      const res = runScriptWithStdin(SCRIPT, ['expert'], JSON.stringify({ status: 'no_finding' }));
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('VALID: expert');
+    });
+
+    it('should reject invalid JSON input', () => {
+      const res = runScriptWithStdin(SCRIPT, ['expert'], 'not a json');
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject when status is neither finding nor no_finding', () => {
+      const res = runScriptWithStdin(SCRIPT, ['expert'], JSON.stringify({ status: 'something_else' }));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it.each(['expert_icon', 'expert_name', 'priority', 'file_path', 'line_number', 'concern', 'open_question', 'closed_question'])(
+      'should reject a "finding" response missing the required field "%s"',
+      (field) => {
+        const finding = JSON.parse(VALID_FINDING);
+        delete finding[field];
+        const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+        expect(res.exitCode).toBe(1);
+        expect(res.stdout).toContain('ERROR');
+      }
+    );
+
+    it('should reject a priority value outside 高/中/低', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), priority: 'high' };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject a non-positive-integer line_number', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), line_number: 0 };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject an open_question that does not end with a question mark', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), open_question: '質問ではありません' };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject a closed_question that does not end with a question mark', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), closed_question: '質問ではありません' };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject when expert_icon does not match the expected icon for the calling agent', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), expert_icon: '🔍' };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject when expert_name does not match the expected name for the calling agent', () => {
+      const finding = { ...JSON.parse(VALID_FINDING), expert_name: 'QA専門家' };
+      const res = runScriptWithStdin(SCRIPT, ['expert', '🛡️', 'セキュリティ専門家'], JSON.stringify(finding));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should accept a valid spec-explorer response and print VALID', () => {
+      const res = runScriptWithStdin(
+        SCRIPT,
+        ['spec-explorer'],
+        JSON.stringify({
+          tags: ['Security'],
+          files: [{ file_path: 'src/auth.ts', summary: '認証ロジックの変更' }],
+        })
+      );
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe('VALID: spec-explorer');
+    });
+
+    it('should reject a spec-explorer response with an unknown tag', () => {
+      const res = runScriptWithStdin(
+        SCRIPT,
+        ['spec-explorer'],
+        JSON.stringify({
+          tags: ['NotARealTag'],
+          files: [{ file_path: 'src/auth.ts', summary: 'x' }],
+        })
+      );
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject a spec-explorer response combining Logic/General with another tag', () => {
+      const res = runScriptWithStdin(
+        SCRIPT,
+        ['spec-explorer'],
+        JSON.stringify({
+          tags: ['Logic/General', 'Security'],
+          files: [{ file_path: 'src/auth.ts', summary: 'x' }],
+        })
+      );
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject a spec-explorer response with an empty tags array', () => {
+      const res = runScriptWithStdin(
+        SCRIPT,
+        ['spec-explorer'],
+        JSON.stringify({ tags: [], files: [{ file_path: 'src/auth.ts', summary: 'x' }] })
+      );
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject a spec-explorer response whose files entries are missing summary/file_path', () => {
+      const res = runScriptWithStdin(
+        SCRIPT,
+        ['spec-explorer'],
+        JSON.stringify({ tags: ['Security'], files: [{ file_path: 'src/auth.ts' }] })
+      );
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
+    });
+
+    it('should reject an unknown kind argument', () => {
+      const res = runScriptWithStdin(SCRIPT, ['unknown-kind'], JSON.stringify({ status: 'no_finding' }));
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('ERROR');
     });
   });
 });
